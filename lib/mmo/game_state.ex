@@ -238,7 +238,8 @@ defmodule MMO.GameState do
       0 ->
         "x"
 
-      # there are some alive players: don't count the dead ones
+      # there are some alive players: don't count the dead ones (i.e. only the
+      # live players are considered for rendering)
       count ->
         render_player_count(count)
     end
