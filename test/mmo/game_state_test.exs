@@ -3,7 +3,7 @@ defmodule MMO.GameStateTest do
   doctest MMO.GameState
 
   alias MMO.GameState
-  alias MMO.Actions.Move
+  alias MMO.Actions.{Attack, Move}
 
   defp render_state(state) do
     GameState.render(state, GameState.player_renderer("me"))
@@ -187,6 +187,85 @@ defmodule MMO.GameStateTest do
       assert Map.has_key?(players_on_cell, "me")
       assert Map.has_key?(players_on_cell, "other_player")
       assert Enum.count(players_on_cell) == 2
+    end
+  end
+
+  describe "player attack" do
+    setup do
+      state =
+        GameState.new()
+        |> GameState.spawn_player_locations(%{
+          "me" => {2, 3},
+          "a" => {1, 2},
+          "b" => {1, 2},
+          "c" => {2, 2},
+          "d" => {2, 3},
+          "e" => {3, 2},
+          "f" => {3, 2},
+          "g" => {3, 3},
+          "z1" => {1, 4},
+          "z2" => {1, 4},
+          "z3" => {1, 4},
+          "z4" => {1, 4},
+          "z5" => {1, 4},
+          "z6" => {1, 4},
+          "z7" => {1, 4},
+          "z8" => {1, 4},
+          "z9" => {1, 4},
+          "z10" => {1, 4},
+          "out_of_reach_1" => {2, 5},
+          "out_of_reach_2" => {8, 7}
+        })
+
+      %{state: state}
+    end
+
+    test "attacking kills all surrounding players, but no others", %{state: state} do
+      assert_action(
+        state,
+        """
+        ##########
+        # 2 *    #
+        # 1@ 1   #
+        # 21     #
+        ## ####  #
+        #   #    #
+        #   #    #
+        #   #    #
+        #      1 #
+        ##########
+        """,
+        Attack.new("me"),
+        """
+        ##########
+        # x x    #
+        # x@ 1   #
+        # xx     #
+        ## ####  #
+        #   #    #
+        #   #    #
+        #   #    #
+        #      1 #
+        ##########
+        """
+      )
+    end
+
+    test "attacking kills enemies on the same cell as the hero, but not the hero himself", %{
+      state: state
+    } do
+      state =
+        state
+        |> GameState.apply_action(Attack.new("me"))
+        |> GameState.coalesce()
+
+      {alive, dead} =
+        state
+        |> Map.get({2, 3})
+        |> Enum.split_with(fn {_player, status} -> status == :alive end)
+
+      assert [{"me", :alive}] = alive
+      assert Enum.count(dead) > 0
     end
   end
 end

@@ -3,7 +3,7 @@ defmodule MMO.GameState do
   @moduledoc false
 
   alias MMO.{Action, Board}
-  alias MMO.Actions.Move
+  alias MMO.Actions.{Attack, Move}
 
   @type t :: %__MODULE__{board: Board.t(), player_info: %{player => player_state}}
   @typep player_state :: %{position: coordinate, status: player_status}
@@ -130,6 +130,32 @@ defmodule MMO.GameState do
   @spec current_position(t, player) :: coordinate
   defp current_position(%__MODULE__{player_info: player_info}, player),
     do: get_in(player_info, [player, :position])
+
+  @doc false
+  def player_attack(%__MODULE__{} = state, %Attack{player: player}) do
+    state
+    |> kill_players(get_in(state.player_info, [player, :position]), except: [player])
+  end
+
+  defp kill_players(%__MODULE__{} = state, center, opts) do
+    safe_players = opts |> Keyword.get(:except, []) |> MapSet.new()
+
+    blast_radius = Board.blast_radius(state.board, center)
+
+    player_info =
+      state.player_info
+      |> Enum.map(fn {player, player_state} ->
+        with true <- MapSet.member?(blast_radius, player_state.position),
+             false <- MapSet.member?(safe_players, player) do
+          {player, %{player_state | status: :dead}}
+        else
+          _ -> {player, player_state}
+        end
+      end)
+      |> Enum.into(%{})
+
+    %{state | player_info: player_info}
+  end
 
   @spec coalesce(t) :: coalesced_board
   def coalesce(%__MODULE__{} = state) do

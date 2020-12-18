@@ -151,11 +151,11 @@ defmodule MMO.Board do
   @doc "Returns the `MMO.Board.coordinate/0` of a random walkable cell on the board"
   @spec random_walkable_cell(t) :: coordinate
   def random_walkable_cell(%__MODULE__{} = board) do
-    {coord, :alive} =
+    {coord, :floor} =
       board
       |> cell_map()
       |> Enum.shuffle()
-      |> Enum.find(fn {_coord, status} -> status == :alive end)
+      |> Enum.find(fn {_coord, cell_type} -> cell_type == :floor end)
 
     coord
   end
@@ -183,8 +183,25 @@ defmodule MMO.Board do
   def neighbors?({left, col}, {right, col}), do: touching?(left, right)
   def neighbors?({_, _}, {_, _}), do: false
 
+  @doc false
   @spec touching?(non_neg_integer, non_neg_integer) :: boolean
   defp touching?(left, right), do: abs(left - right) == 1
+
+  @doc false
+  @spec blast_radius(t, coordinate) :: MapSet.t(coordinate)
+  def blast_radius(board, {x, y}) do
+    %{rows: rows, cols: cols} = dimensions(board)
+
+    for row <- (x - 1)..(x + 1),
+        row >= 0,
+        row < rows,
+        col <- (y - 1)..(y + 1),
+        col >= 0,
+        col < cols do
+      {row, col}
+    end
+    |> MapSet.new()
+  end
 
   @doc false
   @spec cells(t) :: matrix
