@@ -148,6 +148,32 @@ defmodule MMO.Board do
     end
   end
 
+  @doc """
+  Returns true if the 2 coordinates are next to each other.
+
+  Diagonally-positioned coordinates are not considered to be neighbors.
+
+  ## Examples
+
+      iex> alias MMO.Board
+      iex> Board.neighbors?({0, 0}, {0, 1})
+      true
+      iex> Board.neighbors?({0, 0}, {0, 0})
+      true
+      iex> Board.neighbors?({0, 0}, {1, 1})
+      false
+      iex> Board.neighbors?({0, 0}, {0, 2})
+      false
+  """
+  @spec neighbors?(coordinate, coordinate) :: boolean
+  def neighbors?({x, y}, {x, y}), do: true
+  def neighbors?({row, left}, {row, right}), do: touching?(left, right)
+  def neighbors?({left, col}, {right, col}), do: touching?(left, right)
+  def neighbors?({_, _}, {_, _}), do: false
+
+  @spec touching?(non_neg_integer, non_neg_integer) :: boolean
+  defp touching?(left, right), do: abs(left - right) == 1
+
   @doc false
   @spec cells(t) :: matrix
   def cells(%__MODULE__{cells: cells}), do: cells
