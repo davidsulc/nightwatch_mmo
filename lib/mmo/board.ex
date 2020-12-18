@@ -10,7 +10,7 @@ defmodule MMO.Board do
   @typedoc "A game board instance."
   @opaque t :: %__MODULE__{}
 
-  @typedoc false
+  @typedoc "Board cell types"
   @type cell :: :wall | :floor
 
   @typedoc false
@@ -46,8 +46,8 @@ defmodule MMO.Board do
   ##########
   """
 
-  @enforce_keys [:cells, :cell_map]
-  defstruct [:cells, :cell_map]
+  @enforce_keys [:cells, :cell_map, :dimensions]
+  defstruct [:cells, :cell_map, :dimensions]
 
   @doc """
   Creates a new board.
@@ -178,9 +178,17 @@ defmodule MMO.Board do
   @spec cells(t) :: matrix
   def cells(%__MODULE__{cells: cells}), do: cells
 
-  @doc false
+  @doc """
+  Returns a map with coordinate keys refering to cells.
+  """
   @spec cell_map(t) :: lookup_table
   def cell_map(%__MODULE__{cell_map: cell_map}), do: cell_map
+
+  @doc """
+  Returns the board's dimensions.
+  """
+  @spec dimensions(t) :: %{rows: non_neg_integer, cols: non_neg_integer}
+  def dimensions(%__MODULE__{dimensions: dimensions}), do: dimensions
 
   @spec validate(matrix) :: :ok | validation_error
   defp validate(cells) do

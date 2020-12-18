@@ -12,7 +12,8 @@ defmodule MMO.Board.Serialization do
 
     [
       cells: matrix,
-      cell_map: to_map(matrix)
+      cell_map: to_map(matrix),
+      dimensions: %{rows: Enum.count(matrix), cols: matrix |> hd() |> Enum.count()}
     ]
   end
 
