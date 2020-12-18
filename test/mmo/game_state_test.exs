@@ -17,11 +17,8 @@ defmodule MMO.GameStateTest do
 
   describe "player movement" do
     setup do
-      {:ok, board} = MMO.Board.new()
-
       %{
-        state:
-          GameState.new(board: board, player_info: %{"me" => %{position: {1, 1}, status: :alive}})
+        state: GameState.new() |> GameState.spawn_player_locations(%{"me" => {1, 1}})
       }
     end
 
@@ -150,11 +147,7 @@ defmodule MMO.GameStateTest do
     end
 
     test "can move onto a cell containing another player", %{state: state} do
-      state = %{
-        state
-        | player_info:
-            Map.put(state.player_info, "other_player", %{position: {1, 2}, status: :alive})
-      }
+      state = GameState.spawn_player_locations(state, %{"other_player" => {1, 2}})
 
       assert_action(
         state,

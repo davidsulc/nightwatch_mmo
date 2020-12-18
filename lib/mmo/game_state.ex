@@ -1,13 +1,15 @@
 defmodule MMO.GameState do
+  # TODO document
   @moduledoc false
 
   alias MMO.{Action, Board}
   alias MMO.Actions.Move
 
   @type t :: %__MODULE__{board: Board.t(), player_info: %{player => player_state}}
-  @typep player_state :: %{position: Board.coordinate(), status: player_status}
+  @typep player_state :: %{position: coordinate, status: player_status}
+  @type coordinate :: Board.coordinate()
   @typep player_status :: :alive | :dead
-  @type coalesced_board :: %{Board.coordinate() => coalesced_cell}
+  @type coalesced_board :: %{coordinate => coalesced_cell}
   @type coalesced_cell :: empty_cell | cell_contents
   @type empty_cell :: Board.cell()
   @type cell_contents :: %{player => player_status}
@@ -15,12 +17,89 @@ defmodule MMO.GameState do
   @typep player_renderer :: (cell_contents -> String.t())
   @type action :: Move.t()
 
+  # TODO add guards (e.g. player is String.t)
+
   @enforce_keys [:board, :player_info]
   defstruct [:board, :player_info]
 
+  @doc """
+  Creates a new game state.
+
+  Options:
+
+  * `:board`: the `MMO.Board.t/0` the game should use. If none is provided,
+     a board instance will be created.
+  * `:players`: a list of players to spawn on the board
+  """
   @spec new(Keyword.t()) :: t
-  def new(fields) do
-    struct!(__MODULE__, Enum.into(fields, %{}))
+  def new(opts \\ []) do
+    __MODULE__
+    |> struct!(%{
+      board: get_board(opts),
+      player_info: %{}
+    })
+    |> spawn_players(Keyword.get(opts, :players, []))
+  end
+
+  defp get_board(opts) do
+    case Keyword.get(opts, :board) do
+      nil ->
+        {:ok, board} = Board.new()
+        board
+
+      board ->
+        board
+    end
+  end
+
+  @doc """
+  Spawns the player in a random location.
+
+  Players will only be spawned on walkable cells. Spawning an existing player will
+  change his location.
+  """
+  @spec spawn_player(t, player) :: t
+  def spawn_player(%__MODULE__{} = state, player), do: spawn_players(state, [player])
+
+  @doc """
+  Spawns the players in random locations.
+
+  See `MMO.Board.spawn_players/2`.
+  """
+  @spec spawn_players(t, [player]) :: t
+  def spawn_players(%__MODULE__{} = state, players) when is_list(players) do
+    player_locations =
+      players
+      |> Enum.map(&{&1, Board.random_walkable_cell(state.board)})
+      |> Enum.into(%{})
+
+    spawn_player_locations(state, player_locations)
+  end
+
+  # If the player cannot be spawned at the desired location (e.g. cell isn't walkable),
+  # he will be spawned in a random location instead
+  @doc false
+  @spec spawn_player_locations(t, %{player => coordinate}) :: t
+  def spawn_player_locations(%__MODULE__{} = state, %{} = player_locations) do
+    sanitized_player_info =
+      player_locations
+      |> Enum.map(fn {player, coord} ->
+        {player, %{position: sanitize_spawn_location(state, coord), status: :alive}}
+      end)
+      |> Enum.into(%{})
+
+    %{
+      state
+      | player_info: Map.merge(state.player_info, sanitized_player_info)
+    }
+  end
+
+  @spec sanitize_spawn_location(t, coordinate) :: coordinate
+  defp sanitize_spawn_location(%__MODULE__{} = state, coord) do
+    case Board.walkable?(state.board, coord) do
+      true -> coord
+      false -> Board.random_walkable_cell(state.board)
+    end
   end
 
   @spec apply_action(t, action) :: t
@@ -31,7 +110,7 @@ defmodule MMO.GameState do
     with true <- Board.walkable?(board, destination),
          origin when not is_nil(origin) <- current_position(state, player),
          true <- Board.neighbors?(origin, destination) do
-      %{state | player_info: put_in(state.player_info, [player, :position], destination)}
+      %{state | player_info: move_player(state.player_info, player, destination)}
     else
       # We can't move the player, so we don't.
       # This could for example happen if a player is attempting to walk into a wall, or a
@@ -45,7 +124,10 @@ defmodule MMO.GameState do
     end
   end
 
-  @spec current_position(t, player) :: Board.coordinate()
+  defp move_player(player_info, player, destination),
+    do: put_in(player_info, [player, :position], destination)
+
+  @spec current_position(t, player) :: coordinate
   defp current_position(%__MODULE__{player_info: player_info}, player),
     do: get_in(player_info, [player, :position])
 

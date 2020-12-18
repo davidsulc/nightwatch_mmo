@@ -148,6 +148,18 @@ defmodule MMO.Board do
     end
   end
 
+  @doc "Returns the `MMO.Board.coordinate/0` of a random walkable cell on the board"
+  @spec random_walkable_cell(t) :: coordinate
+  def random_walkable_cell(%__MODULE__{} = board) do
+    {coord, :alive} =
+      board
+      |> cell_map()
+      |> Enum.shuffle()
+      |> Enum.find(fn {_coord, status} -> status == :alive end)
+
+    coord
+  end
+
   @doc """
   Returns true if the 2 coordinates are next to each other.
 
