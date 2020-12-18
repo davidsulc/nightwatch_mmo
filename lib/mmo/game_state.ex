@@ -4,17 +4,19 @@ defmodule MMO.GameState do
   alias MMO.{Action, Board}
   alias MMO.Actions.Move
 
-  @type t :: %__MODULE__{}
+  @type t :: %__MODULE__{board: Board.t(), player_info: %{player => player_state}}
+  @typep player_state :: %{position: Board.coordinate(), status: player_status}
+  @typep player_status :: :alive | :dead
   @type coalesced_board :: %{Board.coordinate() => coalesced_cell}
   @type coalesced_cell :: empty_cell | cell_contents
   @type empty_cell :: Board.cell()
-  @type cell_contents :: MapSet.t(player)
+  @type cell_contents :: %{player => player_status}
   @typep player :: String.t()
-  @typep player_renderer :: (MapSet.t(player) -> String.t())
+  @typep player_renderer :: (cell_contents -> String.t())
   @type action :: Move.t()
 
-  @enforce_keys [:board, :player_positions]
-  defstruct [:board, :player_positions]
+  @enforce_keys [:board, :player_info]
+  defstruct [:board, :player_info]
 
   @spec new(Keyword.t()) :: t
   def new(fields) do
@@ -29,7 +31,7 @@ defmodule MMO.GameState do
     with true <- Board.walkable?(board, destination),
          origin when not is_nil(origin) <- current_position(state, player),
          true <- Board.neighbors?(origin, destination) do
-      %{state | player_positions: Map.put(state.player_positions, player, destination)}
+      %{state | player_info: put_in(state.player_info, [player, :position], destination)}
     else
       # We can't move the player, so we don't.
       # This could for example happen if a player is attempting to walk into a wall, or a
@@ -44,20 +46,21 @@ defmodule MMO.GameState do
   end
 
   @spec current_position(t, player) :: Board.coordinate()
-  defp current_position(%__MODULE__{player_positions: positions}, player),
-    do: Map.get(positions, player)
+  defp current_position(%__MODULE__{player_info: player_info}, player),
+    do: get_in(player_info, [player, :position])
 
   @spec coalesce(t) :: coalesced_board
   def coalesce(%__MODULE__{} = state) do
     board_cell_map = Board.cell_map(state.board)
 
-    Enum.reduce(state.player_positions, board_cell_map, fn {player, pos}, acc ->
+    Enum.reduce(state.player_info, board_cell_map, fn {player, player_state}, acc ->
+      %{position: pos, status: player_status} = player_state
       cell = Map.get(acc, pos)
 
       updated_cell =
         cond do
-          cell == :floor -> MapSet.new([player])
-          match?(%MapSet{}, cell) -> MapSet.put(cell, player)
+          cell == :floor -> %{player => player_status}
+          %{} = cell -> Map.put(cell, player, player_status)
           true -> raise "Player '#{player}' located on unwalkable cell #{inspect(pos)}"
         end
 
@@ -103,22 +106,37 @@ defmodule MMO.GameState do
   @spec player_renderer(current_player :: player) :: player_renderer
   def player_renderer(current_player) do
     fn players_in_cell ->
-      case MapSet.member?(players_in_cell, current_player) do
-        true -> render_current_player()
-        false -> players_in_cell |> MapSet.size() |> render_players()
+      case Map.get(players_in_cell, current_player) do
+        nil -> render_other_players(players_in_cell)
+        status -> render_current_player(status)
       end
     end
   end
 
-  @spec render_current_player() :: String.t()
-  defp render_current_player(), do: "@"
+  @spec render_current_player(player_status) :: String.t()
+  defp render_current_player(:alive), do: "@"
+  defp render_current_player(:dead), do: "&"
 
-  @spec render_players(non_neg_integer) :: String.t()
-  defp render_players(count) do
-    case count do
-      0 -> " "
-      c when c > 9 -> "*"
-      _ -> Integer.to_string(count)
+  @spec render_other_players(cell_contents) :: String.t()
+
+  defp render_other_players(%{} = players) when map_size(players) == 0, do: " "
+
+  defp render_other_players(players) do
+    players
+    |> Enum.filter(fn {_player, status} -> status == :alive end)
+    |> Enum.count()
+    |> case do
+      # there are only dead players on the cell
+      0 ->
+        "x"
+
+      # there are some alive players: don't count the dead ones
+      count ->
+        render_player_count(count)
     end
   end
+
+  @spec render_player_count(pos_integer) :: String.t()
+  defp render_player_count(count) when count > 9, do: "*"
+  defp render_player_count(count), do: Integer.to_string(count)
 end

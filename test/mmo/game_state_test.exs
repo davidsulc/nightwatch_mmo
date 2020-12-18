@@ -20,7 +20,8 @@ defmodule MMO.GameStateTest do
       {:ok, board} = MMO.Board.new()
 
       %{
-        state: GameState.new(board: board, player_positions: %{"me" => {1, 1}})
+        state:
+          GameState.new(board: board, player_info: %{"me" => %{position: {1, 1}, status: :alive}})
       }
     end
 
@@ -149,7 +150,11 @@ defmodule MMO.GameStateTest do
     end
 
     test "can move onto a cell containing another player", %{state: state} do
-      state = %{state | player_positions: Map.put(state.player_positions, "other_player", {1, 2})}
+      state = %{
+        state
+        | player_info:
+            Map.put(state.player_info, "other_player", %{position: {1, 2}, status: :alive})
+      }
 
       assert_action(
         state,
@@ -186,9 +191,9 @@ defmodule MMO.GameStateTest do
         |> GameState.coalesce()
         |> Map.get({1, 2})
 
-      assert MapSet.member?(players_on_cell, "me")
-      assert MapSet.member?(players_on_cell, "other_player")
-      assert MapSet.size(players_on_cell) == 2
+      assert Map.has_key?(players_on_cell, "me")
+      assert Map.has_key?(players_on_cell, "other_player")
+      assert Enum.count(players_on_cell) == 2
     end
   end
 end
