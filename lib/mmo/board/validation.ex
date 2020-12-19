@@ -51,4 +51,31 @@ defmodule MMO.Board.Validation do
       _ -> false
     end)
   end
+
+  @spec has_non_border_walls?(Board.matrix()) :: boolean
+  def has_non_border_walls?(matrix) do
+    matrix
+    |> remove_bookends()
+    |> Enum.map(&remove_bookends/1)
+    |> List.flatten()
+    |> Enum.reduce_while(0, fn
+      _cell, 2 -> {:halt, 2}
+      :wall, acc -> {:cont, acc + 1}
+      :floor, acc -> {:cont, acc}
+    end)
+    |> case do
+      insufficient_count when insufficient_count < 2 -> false
+      _ -> true
+    end
+  end
+
+  # Removes the first and last elements of the given enumerable.
+  # Note that the order of elements is not preserved.
+  @spec remove_bookends(Enumerable.t()) :: Enumerable.t()
+  defp remove_bookends(enumerable) do
+    enumerable
+    |> tl()
+    |> Enum.reverse()
+    |> tl()
+  end
 end

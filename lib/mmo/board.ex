@@ -31,7 +31,8 @@ defmodule MMO.Board do
   """
   @type coordinate :: {row :: non_neg_integer, col :: non_neg_integer}
 
-  @type validation_error :: :non_rectangular | :not_enclosed | :unwalkable
+  @type validation_error ::
+          :non_rectangular | :not_enclosed | :unwalkable | :insufficient_internal_walls
 
   @default_board """
   ##########
@@ -55,19 +56,30 @@ defmodule MMO.Board do
   The provided string representation is parsed into an `t:MMO.Board.t/0` instance:
 
   * every line represents a row
-  * every character in the row represents a cell: walls are depicted with the `#` character, while walkable cells are a space `\u2423` character. Any other character is treated as a walkable cell.
+  * every character in the row represents a cell: walls are depicted with the `#` character,
+      while walkable cells are a space `\u2423` character. Any other character is treated as a walkable cell.
 
-  Boards must be completely enclosed in walls, be of rectangular shape, and have at least one walkable cell.
+  Boards must be completely enclosed in walls, be of rectangular shape, have an internal wall,
+  and have at least one walkable cell.
 
   Although not recommended, boards are allowed to have walls sectioning off areas.
 
   ## Examples
 
       iex> {:ok, %MMO.Board{}} = MMO.Board.new(\"""
+      ...>  #####
+      ...>  #   #
+      ...>  # ###
+      ...>  #   #
+      ...>  #####
+      ...>  \""")
+
+      iex> MMO.Board.new(\"""
       ...>  ####
-      ...>  #  #
+      ...>     #
       ...>  ####
       ...>  \""")
+      {:error, :not_enclosed}
 
       iex> MMO.Board.new(\"""
       ...>  ####
@@ -77,17 +89,20 @@ defmodule MMO.Board do
       {:error, :non_rectangular}
 
       iex> MMO.Board.new(\"""
-      ...>  ##
-      ...>  ##
+      ...>  ####
+      ...>  #  #
+      ...>  # ##
+      ...>  #  #
+      ...>  ####
       ...>  \""")
-      {:error, :unwalkable}
+      {:error, :insufficient_internal_walls}
 
       iex> MMO.Board.new(\"""
-      ...>  ####
-      ...>     #
-      ...>  ####
+      ...>  ###
+      ...>  ###
+      ...>  ###
       ...>  \""")
-      {:error, :not_enclosed}
+      {:error, :unwalkable}
   """
   @spec new(String.t()) :: {:ok, t()} | {:error, validation_error}
   def new(board_string) when is_binary(board_string) do
@@ -122,16 +137,18 @@ defmodule MMO.Board do
 
       iex> alias MMO.Board
       iex> {:ok, board} = Board.new(\"""
-      ...>  ####
-      ...>  #  #
-      ...>  ####
+      ...>  #####
+      ...>  #   #
+      ...>  # ###
+      ...>  #   #
+      ...>  #####
       ...>  \""")
       iex> Board.walkable?(board, {0, 0})
       false
       iex> Board.walkable?(board, {1, 1})
       true
-      iex> Board.walkable?(board, {1, 2})
-      true
+      iex> Board.walkable?(board, {2, 2})
+      false
       iex> Board.walkable?(board, {99, 99})
       false
   """
@@ -223,12 +240,14 @@ defmodule MMO.Board do
   defp validate(cells) do
     with {:rectangular, true} <- {:rectangular, Validation.rectangular?(cells)},
          {:enclosed, true} <- {:enclosed, Validation.fully_enclosed?(cells)},
-         {:walkable, true} <- {:walkable, Validation.has_floor?(cells)} do
+         {:walkable, true} <- {:walkable, Validation.has_floor?(cells)},
+         {:contains_walls, true} <- {:contains_walls, Validation.has_non_border_walls?(cells)} do
       :ok
     else
       {:rectangular, _} -> :non_rectangular
       {:enclosed, _} -> :not_enclosed
       {:walkable, _} -> :unwalkable
+      {:contains_walls, _} -> :insufficient_internal_walls
     end
   end
 
