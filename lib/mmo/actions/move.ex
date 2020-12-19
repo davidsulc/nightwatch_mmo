@@ -5,7 +5,8 @@ defmodule MMO.Actions.Move do
   This simply encodes the move "request": it won't necessarily be applied to the game state.
   """
 
-  alias MMO.{Action, Board, GameState}
+  alias MMO.{Action, Board}
+  alias MMO.Game.State
 
   @opaque t :: %__MODULE__{}
 
@@ -17,9 +18,9 @@ defmodule MMO.Actions.Move do
   def new(player, coord), do: %__MODULE__{player: player, to: coord}
 
   defimpl Action do
-    def apply(%MMO.Actions.Move{} = move, %GameState{} = state) do
+    def apply(%MMO.Actions.Move{} = move, %State{} = state) do
       %{player: player, to: destination} = move
-      GameState.move_player(state, player, destination)
+      State.move_player(state, player, destination)
     end
   end
 end

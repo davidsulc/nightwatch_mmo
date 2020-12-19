@@ -1,24 +1,24 @@
-defmodule MMO.GameStateTest do
+defmodule MMO.Game.StateTest do
   use ExUnit.Case, async: true
-  doctest MMO.GameState
+  doctest MMO.Game.State
 
-  alias MMO.GameState
+  alias MMO.Game.State
   alias MMO.Actions.{Attack, Move}
 
   defp render_state(state) do
-    GameState.render(state, GameState.player_renderer("me"))
+    State.render(state, State.player_renderer("me"))
   end
 
   defp assert_action(state, pre, action, post) do
     assert render_state(state) == pre
-    state = GameState.apply_action(state, action)
+    state = State.apply_action(state, action)
     assert render_state(state) == post
   end
 
   describe "player movement" do
     setup do
       %{
-        state: GameState.new() |> GameState.spawn_player_locations(%{"me" => {1, 1}})
+        state: State.new() |> State.spawn_player_locations(%{"me" => {1, 1}})
       }
     end
 
@@ -147,7 +147,7 @@ defmodule MMO.GameStateTest do
     end
 
     test "can move onto a cell containing another player", %{state: state} do
-      state = GameState.spawn_player_locations(state, %{"other_player" => {1, 2}})
+      state = State.spawn_player_locations(state, %{"other_player" => {1, 2}})
 
       assert_action(
         state,
@@ -180,8 +180,8 @@ defmodule MMO.GameStateTest do
 
       players_on_cell =
         state
-        |> GameState.apply_action(Move.new("me", {1, 2}))
-        |> GameState.coalesce()
+        |> State.apply_action(Move.new("me", {1, 2}))
+        |> State.coalesce()
         |> Map.get({1, 2})
 
       assert Map.has_key?(players_on_cell, "me")
@@ -193,8 +193,8 @@ defmodule MMO.GameStateTest do
   describe "player attack" do
     setup do
       state =
-        GameState.new()
-        |> GameState.spawn_player_locations(%{
+        State.new()
+        |> State.spawn_player_locations(%{
           "me" => {2, 3},
           "a" => {1, 2},
           "b" => {1, 2},
@@ -256,8 +256,8 @@ defmodule MMO.GameStateTest do
     } do
       state =
         state
-        |> GameState.apply_action(Attack.new("me"))
-        |> GameState.coalesce()
+        |> State.apply_action(Attack.new("me"))
+        |> State.coalesce()
 
       {alive, dead} =
         state
