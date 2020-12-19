@@ -43,6 +43,7 @@ defmodule MMO.GameState do
     |> spawn_players(Keyword.get(opts, :players, []))
   end
 
+  @spec get_board(Keyword.t()) :: Board.t()
   defp get_board(opts) when is_list(opts) do
     case Keyword.get(opts, :board) do
       nil ->
@@ -109,6 +110,7 @@ defmodule MMO.GameState do
   def apply_action(%__MODULE__{} = state, action), do: Action.apply(action, state)
 
   @doc false
+  @spec move_player(t, player, coordinate) :: t
   def move_player(%__MODULE__{board: board} = state, player, destination)
       when is_player(player) and is_coord(destination) do
     with true <- Board.walkable?(board, destination),
@@ -133,6 +135,7 @@ defmodule MMO.GameState do
     do: get_in(player_info, [player, :position])
 
   @doc false
+  @spec player_attack(t, player) :: t
   def player_attack(%__MODULE__{} = state, player) when is_player(player) do
     kill_players(state, get_in(state.player_info, [player, :position]), except: [player])
   end
