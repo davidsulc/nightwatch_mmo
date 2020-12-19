@@ -17,7 +17,7 @@ defmodule MMO.GameState do
   @type cell_contents :: %{player => player_status}
   @typep player :: String.t()
   @typep player_renderer :: (cell_contents -> String.t())
-  @type action :: Move.t()
+  @type action :: Attack.t() | Move.t()
 
   @enforce_keys [:board, :player_info]
   defstruct [:board, :player_info]
@@ -109,12 +109,12 @@ defmodule MMO.GameState do
   def apply_action(%__MODULE__{} = state, action), do: Action.apply(action, state)
 
   @doc false
-  def move_player(%__MODULE__{board: board} = state, %Move{player: player, to: destination})
+  def move_player(%__MODULE__{board: board} = state, player, destination)
       when is_player(player) and is_coord(destination) do
     with true <- Board.walkable?(board, destination),
          origin when not is_nil(origin) <- current_position(state, player),
          true <- Board.neighbors?(origin, destination) do
-      %{state | player_info: move_player(state.player_info, player, destination)}
+      %{state | player_info: put_in(state.player_info, [player, :position], destination)}
     else
       # We can't move the player, so we don't.
       # This could for example happen if a player is attempting to walk into a wall, or a
@@ -128,15 +128,12 @@ defmodule MMO.GameState do
     end
   end
 
-  defp move_player(player_info, player, destination),
-    do: put_in(player_info, [player, :position], destination)
-
   @spec current_position(t, player) :: coordinate
   defp current_position(%__MODULE__{player_info: player_info}, player),
     do: get_in(player_info, [player, :position])
 
   @doc false
-  def player_attack(%__MODULE__{} = state, %Attack{player: player}) when is_player(player) do
+  def player_attack(%__MODULE__{} = state, player) when is_player(player) do
     kill_players(state, get_in(state.player_info, [player, :position]), except: [player])
   end
 

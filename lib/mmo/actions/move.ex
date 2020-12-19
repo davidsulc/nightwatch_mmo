@@ -18,7 +18,8 @@ defmodule MMO.Actions.Move do
 
   defimpl Action do
     def apply(%MMO.Actions.Move{} = move, %GameState{} = state) do
-      GameState.move_player(state, move)
+      %{player: player, to: destination} = move
+      GameState.move_player(state, player, destination)
     end
   end
 end

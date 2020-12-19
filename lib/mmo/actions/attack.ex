@@ -15,8 +15,8 @@ defmodule MMO.Actions.Attack do
   def new(player), do: %__MODULE__{player: player}
 
   defimpl Action do
-    def apply(%MMO.Actions.Attack{} = attack, %GameState{} = state) do
-      GameState.player_attack(state, attack)
+    def apply(%MMO.Actions.Attack{player: player}, %GameState{} = state) do
+      GameState.player_attack(state, player)
     end
   end
 end
