@@ -20,6 +20,7 @@ defmodule MMO.Game.State do
   @type action :: Attack.t() | Move.t()
   @type action_error :: player_error | move_error
   @typep player_error :: :invalid_player | :dead_player
+  @typep spawn_error :: :already_spawned
   @typep move_error :: :unwalkable_destination | :unreachable_destination
 
   @enforce_keys [:board, :player_info]
@@ -38,13 +39,11 @@ defmodule MMO.Game.State do
   """
   @spec new(Keyword.t()) :: {:ok, t}
   def new(opts \\ []) when is_list(opts) do
-    {:ok, state} =
-      __MODULE__
-      |> struct!(%{
+    state =
+      struct!(__MODULE__, %{
         board: get_board(opts),
         player_info: %{}
       })
-      |> spawn_players(Keyword.get(opts, :players, []))
 
     {:ok, state}
   end
@@ -69,40 +68,23 @@ defmodule MMO.Game.State do
   """
   @spec spawn_player(t, player) :: {:ok, t}
   def spawn_player(%__MODULE__{} = state, player) when is_binary(player),
-    do: spawn_players(state, [player])
-
-  @doc """
-  Spawns the players in random locations.
-
-  See `MMO.Board.spawn_players/2`.
-  """
-  @spec spawn_players(t, [player]) :: {:ok, t}
-  def spawn_players(%__MODULE__{} = state, players) when is_list(players) do
-    player_locations =
-      players
-      |> Enum.map(&{&1, Board.random_walkable_cell(state.board)})
-      |> Enum.into(%{})
-
-    spawn_player_locations(state, player_locations)
-  end
+    do: spawn_player_at(state, player, Board.random_walkable_cell(state.board))
 
   # If the player cannot be spawned at the desired location (e.g. cell isn't walkable),
   # he will be spawned in a random location instead
   @doc false
-  @spec spawn_player_locations(t, %{player => coordinate}) :: {:ok, t}
-  def spawn_player_locations(%__MODULE__{} = state, %{} = player_locations) do
-    sanitized_player_info =
-      player_locations
-      |> Enum.map(fn {player, coord} ->
-        {player, %{position: sanitize_spawn_location(state, coord), status: :alive}}
-      end)
-      |> Enum.into(%{})
+  @spec spawn_player_at(t, player, coordinate) :: {:ok, t} | {:error, spawn_error}
+  def spawn_player_at(%__MODULE__{} = state, player, coord)
+      when is_player(player) and is_coord(coord) do
+    case Map.get(state.player_info, player) do
+      nil ->
+        player_state = %{position: sanitize_spawn_location(state, coord), status: :alive}
 
-    {:ok,
-     %{
-       state
-       | player_info: Map.merge(state.player_info, sanitized_player_info)
-     }}
+        {:ok, %{state | player_info: Map.put(state.player_info, player, player_state)}}
+
+      _ ->
+        {{:error, :already_spawned}, state}
+    end
   end
 
   @spec sanitize_spawn_location(t, coordinate) :: coordinate

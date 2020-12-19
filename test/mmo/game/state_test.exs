@@ -18,7 +18,7 @@ defmodule MMO.Game.StateTest do
   describe "player movement" do
     setup do
       {:ok, state} = State.new()
-      {:ok, state} = State.spawn_player_locations(state, %{"me" => {1, 1}})
+      {:ok, state} = State.spawn_player_at(state, "me", {1, 1})
 
       %{state: state}
     end
@@ -148,7 +148,7 @@ defmodule MMO.Game.StateTest do
     end
 
     test "can move onto a cell containing another player", %{state: state} do
-      {:ok, state} = State.spawn_player_locations(state, %{"other_player" => {1, 2}})
+      {:ok, state} = State.spawn_player_at(state, "other_player", {1, 2})
 
       assert_action(
         state,
@@ -196,29 +196,34 @@ defmodule MMO.Game.StateTest do
     setup do
       {:ok, state} = State.new()
 
-      {:ok, state} =
-        State.spawn_player_locations(state, %{
-          "me" => {2, 3},
-          "a" => {1, 2},
-          "b" => {1, 2},
-          "c" => {2, 2},
-          "d" => {2, 3},
-          "e" => {3, 2},
-          "f" => {3, 2},
-          "g" => {3, 3},
-          "z1" => {1, 4},
-          "z2" => {1, 4},
-          "z3" => {1, 4},
-          "z4" => {1, 4},
-          "z5" => {1, 4},
-          "z6" => {1, 4},
-          "z7" => {1, 4},
-          "z8" => {1, 4},
-          "z9" => {1, 4},
-          "z10" => {1, 4},
-          "out_of_reach_1" => {2, 5},
-          "out_of_reach_2" => {8, 7}
-        })
+      player_locations = [
+        {"me", {2, 3}},
+        {"a", {1, 2}},
+        {"b", {1, 2}},
+        {"c", {2, 2}},
+        {"d", {2, 3}},
+        {"e", {3, 2}},
+        {"f", {3, 2}},
+        {"g", {3, 3}},
+        {"z1", {1, 4}},
+        {"z2", {1, 4}},
+        {"z3", {1, 4}},
+        {"z4", {1, 4}},
+        {"z5", {1, 4}},
+        {"z6", {1, 4}},
+        {"z7", {1, 4}},
+        {"z8", {1, 4}},
+        {"z9", {1, 4}},
+        {"z10", {1, 4}},
+        {"out_of_reach_1", {2, 5}},
+        {"out_of_reach_2", {8, 7}}
+      ]
+
+      state =
+        Enum.reduce(player_locations, state, fn {player, location}, state ->
+          {:ok, state} = State.spawn_player_at(state, player, location)
+          state
+        end)
 
       %{state: state}
     end
