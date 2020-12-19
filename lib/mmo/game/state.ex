@@ -18,6 +18,9 @@ defmodule MMO.Game.State do
   @typep player :: String.t()
   @typep player_renderer :: (cell_contents -> String.t())
   @type action :: Attack.t() | Move.t()
+  @type action_error :: player_error | move_error
+  @typep player_error :: :invalid_player | :dead_player
+  @typep move_error :: :unwalkable_destination | :unreachable_destination
 
   @enforce_keys [:board, :player_info]
   defstruct [:board, :player_info]
@@ -33,14 +36,17 @@ defmodule MMO.Game.State do
      a board instance will be created.
   * `:players`: a list of players to spawn on the board
   """
-  @spec new(Keyword.t()) :: t
+  @spec new(Keyword.t()) :: {:ok, t}
   def new(opts \\ []) when is_list(opts) do
-    __MODULE__
-    |> struct!(%{
-      board: get_board(opts),
-      player_info: %{}
-    })
-    |> spawn_players(Keyword.get(opts, :players, []))
+    {:ok, state} =
+      __MODULE__
+      |> struct!(%{
+        board: get_board(opts),
+        player_info: %{}
+      })
+      |> spawn_players(Keyword.get(opts, :players, []))
+
+    {:ok, state}
   end
 
   @spec get_board(Keyword.t()) :: Board.t()
@@ -61,7 +67,7 @@ defmodule MMO.Game.State do
   Players will only be spawned on walkable cells. Spawning an existing player will
   change his location.
   """
-  @spec spawn_player(t, player) :: t
+  @spec spawn_player(t, player) :: {:ok, t}
   def spawn_player(%__MODULE__{} = state, player) when is_binary(player),
     do: spawn_players(state, [player])
 
@@ -70,7 +76,7 @@ defmodule MMO.Game.State do
 
   See `MMO.Board.spawn_players/2`.
   """
-  @spec spawn_players(t, [player]) :: t
+  @spec spawn_players(t, [player]) :: {:ok, t}
   def spawn_players(%__MODULE__{} = state, players) when is_list(players) do
     player_locations =
       players
@@ -83,7 +89,7 @@ defmodule MMO.Game.State do
   # If the player cannot be spawned at the desired location (e.g. cell isn't walkable),
   # he will be spawned in a random location instead
   @doc false
-  @spec spawn_player_locations(t, %{player => coordinate}) :: t
+  @spec spawn_player_locations(t, %{player => coordinate}) :: {:ok, t}
   def spawn_player_locations(%__MODULE__{} = state, %{} = player_locations) do
     sanitized_player_info =
       player_locations
@@ -92,10 +98,11 @@ defmodule MMO.Game.State do
       end)
       |> Enum.into(%{})
 
-    %{
-      state
-      | player_info: Map.merge(state.player_info, sanitized_player_info)
-    }
+    {:ok,
+     %{
+       state
+       | player_info: Map.merge(state.player_info, sanitized_player_info)
+     }}
   end
 
   @spec sanitize_spawn_location(t, coordinate) :: coordinate
@@ -106,38 +113,62 @@ defmodule MMO.Game.State do
     end
   end
 
-  @spec apply_action(t, action) :: t
+  @spec apply_action(t, action) :: {:ok, t} | {{:error, action_error}, t}
   def apply_action(%__MODULE__{} = state, action), do: Action.apply(action, state)
 
   @doc false
-  @spec move_player(t, player, coordinate) :: t
+  @spec move_player(t, player, coordinate) :: {:ok, t} | {{:error, action_error}, t}
   def move_player(%__MODULE__{board: board} = state, player, destination)
       when is_player(player) and is_coord(destination) do
-    with true <- Board.walkable?(board, destination),
-         origin when not is_nil(origin) <- current_position(state, player),
-         true <- Board.neighbors?(origin, destination) do
-      %{state | player_info: put_in(state.player_info, [player, :position], destination)}
+    with {:valid_player, :ok} <- {:valid_player, verify_player(state, player)},
+         {:walkable, true} <- {:walkable, Board.walkable?(board, destination)},
+         # the tuple match is only here to placate dialyzer
+         {:coord, origin} when not is_nil(origin) <- {:coord, current_position(state, player)},
+         {:neighbor, true} <- {:neighbor, Board.neighbors?(origin, destination)} do
+      {:ok, %{state | player_info: put_in(state.player_info, [player, :position], destination)}}
     else
-      # We can't move the player, so we don't.
-      # This could for example happen if a player is attempting to walk into a wall, or a
-      # later move message get received out of turn (i.e. it appears the player is trying
-      # to move too far in a single step).
-      # By ignoring those messages, we should eventually receive a valid move that can be applied
-      # (either because the out of turn move was received, or the player submitted a new move request).
-      # The only consequence for the player would be a percepetion of "lag" and his most logical
-      # course of action would be attempting to move again.
-      _ -> state
+      {:coord, _} -> raise "Unable to determine current player #{player}'s position"
+      {:valid_player, {:error, _} = error} -> {error, state}
+      {:live_player, false} -> {{:error, :dead_player}, state}
+      {:walkable, false} -> {{:error, :unwalkable_destination}, state}
+      {:neighbor, false} -> {{:error, :unreachable_destination}, state}
     end
   end
+
+  @spec verify_player(t, player) :: :ok | {:error, player_error}
+  defp verify_player(state, player) do
+    with {:valid_player, true} <- {:valid_player, player_exists?(state, player)},
+         {:live_player, true} <- {:live_player, player_alive?(state, player)} do
+      :ok
+    else
+      {:valid_player, false} -> {:error, :invalid_player}
+      {:live_player, false} -> {:error, :dead_player}
+    end
+  end
+
+  @spec player_exists?(t, player) :: boolean
+  defp player_exists?(%__MODULE__{player_info: player_info}, player) when is_player(player),
+    do: Map.has_key?(player_info, player)
+
+  @spec player_alive?(t, player) :: boolean
+  defp player_alive?(%__MODULE__{player_info: player_info}, player) when is_player(player),
+    do: get_in(player_info, [player, :status]) == :alive
 
   @spec current_position(t, player) :: coordinate
   defp current_position(%__MODULE__{player_info: player_info}, player),
     do: get_in(player_info, [player, :position])
 
   @doc false
-  @spec player_attack(t, player) :: t
+  @spec player_attack(t, player) :: {:ok, t}
   def player_attack(%__MODULE__{} = state, player) when is_player(player) do
-    kill_players(state, get_in(state.player_info, [player, :position]), except: [player])
+    case verify_player(state, player) do
+      :ok ->
+        {:ok,
+         kill_players(state, get_in(state.player_info, [player, :position]), except: [player])}
+
+      {:error, _} = error ->
+        {error, state}
+    end
   end
 
   @spec kill_players(t, coordinate, Keyword.t()) :: t

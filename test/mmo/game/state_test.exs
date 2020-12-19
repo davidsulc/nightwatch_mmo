@@ -11,15 +11,16 @@ defmodule MMO.Game.StateTest do
 
   defp assert_action(state, pre, action, post) do
     assert render_state(state) == pre
-    state = State.apply_action(state, action)
+    {_result, state} = State.apply_action(state, action)
     assert render_state(state) == post
   end
 
   describe "player movement" do
     setup do
-      %{
-        state: State.new() |> State.spawn_player_locations(%{"me" => {1, 1}})
-      }
+      {:ok, state} = State.new()
+      {:ok, state} = State.spawn_player_locations(state, %{"me" => {1, 1}})
+
+      %{state: state}
     end
 
     test "can move to neighboring walkable cell", %{state: state} do
@@ -147,7 +148,7 @@ defmodule MMO.Game.StateTest do
     end
 
     test "can move onto a cell containing another player", %{state: state} do
-      state = State.spawn_player_locations(state, %{"other_player" => {1, 2}})
+      {:ok, state} = State.spawn_player_locations(state, %{"other_player" => {1, 2}})
 
       assert_action(
         state,
@@ -178,9 +179,10 @@ defmodule MMO.Game.StateTest do
         """
       )
 
+      {_result, state} = State.apply_action(state, Move.new("me", {1, 2}))
+
       players_on_cell =
         state
-        |> State.apply_action(Move.new("me", {1, 2}))
         |> State.coalesce()
         |> Map.get({1, 2})
 
@@ -192,9 +194,10 @@ defmodule MMO.Game.StateTest do
 
   describe "player attack" do
     setup do
-      state =
-        State.new()
-        |> State.spawn_player_locations(%{
+      {:ok, state} = State.new()
+
+      {:ok, state} =
+        State.spawn_player_locations(state, %{
           "me" => {2, 3},
           "a" => {1, 2},
           "b" => {1, 2},
@@ -254,13 +257,11 @@ defmodule MMO.Game.StateTest do
     test "attacking kills enemies on the same cell as the hero, but not the hero himself", %{
       state: state
     } do
-      state =
-        state
-        |> State.apply_action(Attack.new("me"))
-        |> State.coalesce()
+      {_, state} = State.apply_action(state, Attack.new("me"))
 
       {alive, dead} =
         state
+        |> State.coalesce()
         |> Map.get({2, 3})
         |> Enum.split_with(fn {_player, status} -> status == :alive end)
 
