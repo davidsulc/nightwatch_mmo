@@ -5,7 +5,7 @@ defmodule MMO.Actions.Attack do
 
   alias MMO.{Action, GameState}
 
-  @opaque t :: %__MODULE__{}
+  @opaque t :: %__MODULE__{player: binary}
 
   @enforce_keys [:player]
   defstruct [:player]

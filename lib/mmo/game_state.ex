@@ -137,29 +137,34 @@ defmodule MMO.GameState do
 
   @doc false
   def player_attack(%__MODULE__{} = state, %Attack{player: player}) when is_player(player) do
-    state
-    |> kill_players(get_in(state.player_info, [player, :position]), except: [player])
+    kill_players(state, get_in(state.player_info, [player, :position]), except: [player])
   end
 
+  @spec kill_players(t, coordinate, Keyword.t()) :: t
   defp kill_players(%__MODULE__{} = state, center, opts)
        when is_coord(center) and is_list(opts) do
     safe_players = opts |> Keyword.get(:except, []) |> MapSet.new()
-
     blast_radius = Board.blast_radius(state.board, center)
 
     player_info =
       state.player_info
-      |> Enum.map(fn {player, player_state} ->
-        with true <- MapSet.member?(blast_radius, player_state.position),
-             false <- MapSet.member?(safe_players, player) do
-          {player, %{player_state | status: :dead}}
-        else
-          _ -> {player, player_state}
+      |> Enum.map(fn player_kv ->
+        case player_exposed?(player_kv, blast_radius, safe_players) do
+          true -> kill_player(player_kv)
+          false -> player_kv
         end
       end)
       |> Enum.into(%{})
 
     %{state | player_info: player_info}
+  end
+
+  @spec kill_player({player, player_state}) :: {player, player_state}
+  defp kill_player({player, player_state}), do: {player, %{player_state | status: :dead}}
+
+  @spec player_exposed?({player, player_state}, MapSet.t(coordinate), MapSet.t(player)) :: boolean
+  defp player_exposed?({player, player_state}, blast_radius, safe_players) do
+    MapSet.member?(blast_radius, player_state.position) && !MapSet.member?(safe_players, player)
   end
 
   @spec coalesce(t) :: coalesced_board
