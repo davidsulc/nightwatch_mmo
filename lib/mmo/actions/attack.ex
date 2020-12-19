@@ -4,7 +4,7 @@ defmodule MMO.Actions.Attack do
   """
 
   alias MMO.Action
-  alias MMO.Game.State
+  alias MMO.GameState
 
   @opaque t :: %__MODULE__{player: binary}
 
@@ -16,8 +16,8 @@ defmodule MMO.Actions.Attack do
   def new(player), do: %__MODULE__{player: player}
 
   defimpl Action do
-    def apply(%MMO.Actions.Attack{player: player}, %State{} = state) do
-      State.player_attack(state, player)
+    def apply(%MMO.Actions.Attack{player: player}, %GameState{} = state) do
+      GameState.player_attack(state, player)
     end
   end
 end

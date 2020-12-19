@@ -1,4 +1,4 @@
-defmodule MMO.Game.State do
+defmodule MMO.GameState do
   # TODO document
   @moduledoc false
 

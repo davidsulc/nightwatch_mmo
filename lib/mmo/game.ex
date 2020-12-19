@@ -1,7 +1,7 @@
 defmodule MMO.Game do
   use GenServer
 
-  alias __MODULE__.State
+  alias MMO.GameState
   alias MMO.Actions.{Attack, Move}
 
   @type game_name :: atom
@@ -27,22 +27,22 @@ defmodule MMO.Game do
   end
 
   def init(opts) do
-    State.new(opts)
+    GameState.new(opts)
   end
 
   def handle_call({:join, player}, _from, state) do
-    {result, state} = State.spawn_player(state, player)
-    {:reply, {result, State.coalesce(state)}, state}
+    {result, state} = GameState.spawn_player(state, player)
+    {:reply, {result, GameState.coalesce(state)}, state}
   end
 
   def handle_call({:move, player, destination}, _from, state) do
-    {result, state} = State.apply_action(state, Move.new(player, destination))
-    {:reply, {result, State.coalesce(state)}, state}
+    {result, state} = GameState.apply_action(state, Move.new(player, destination))
+    {:reply, {result, GameState.coalesce(state)}, state}
   end
 
   # TODO respawn dead players
   def handle_call({:attack, player}, _from, state) do
-    {result, state} = State.apply_action(state, Attack.new(player))
-    {:reply, {result, State.coalesce(state)}, state}
+    {result, state} = GameState.apply_action(state, Attack.new(player))
+    {:reply, {result, GameState.coalesce(state)}, state}
   end
 end

@@ -1,24 +1,24 @@
-defmodule MMO.Game.StateTest do
+defmodule MMO.GameStateTest do
   use ExUnit.Case, async: true
-  doctest MMO.Game.State
+  doctest MMO.GameState
 
-  alias MMO.Game.State
+  alias MMO.GameState
   alias MMO.Actions.{Attack, Move}
 
   defp render_state(state) do
-    State.render(state, State.player_renderer("me"))
+    GameState.render(state, GameState.player_renderer("me"))
   end
 
   defp assert_action(state, pre, action, post) do
     assert render_state(state) == pre
-    {_result, state} = State.apply_action(state, action)
+    {_result, state} = GameState.apply_action(state, action)
     assert render_state(state) == post
   end
 
   describe "player movement" do
     setup do
-      {:ok, state} = State.new()
-      {:ok, state} = State.spawn_player_at(state, "me", {1, 1})
+      {:ok, state} = GameState.new()
+      {:ok, state} = GameState.spawn_player_at(state, "me", {1, 1})
 
       %{state: state}
     end
@@ -148,7 +148,7 @@ defmodule MMO.Game.StateTest do
     end
 
     test "can move onto a cell containing another player", %{state: state} do
-      {:ok, state} = State.spawn_player_at(state, "other_player", {1, 2})
+      {:ok, state} = GameState.spawn_player_at(state, "other_player", {1, 2})
 
       assert_action(
         state,
@@ -179,11 +179,11 @@ defmodule MMO.Game.StateTest do
         """
       )
 
-      {_result, state} = State.apply_action(state, Move.new("me", {1, 2}))
+      {_result, state} = GameState.apply_action(state, Move.new("me", {1, 2}))
 
       players_on_cell =
         state
-        |> State.coalesce()
+        |> GameState.coalesce()
         |> Map.get({1, 2})
 
       assert Map.has_key?(players_on_cell, "me")
@@ -194,7 +194,7 @@ defmodule MMO.Game.StateTest do
 
   describe "player attack" do
     setup do
-      {:ok, state} = State.new()
+      {:ok, state} = GameState.new()
 
       player_locations = [
         {"me", {2, 3}},
@@ -221,7 +221,7 @@ defmodule MMO.Game.StateTest do
 
       state =
         Enum.reduce(player_locations, state, fn {player, location}, state ->
-          {:ok, state} = State.spawn_player_at(state, player, location)
+          {:ok, state} = GameState.spawn_player_at(state, player, location)
           state
         end)
 
@@ -262,11 +262,11 @@ defmodule MMO.Game.StateTest do
     test "attacking kills enemies on the same cell as the hero, but not the hero himself", %{
       state: state
     } do
-      {_, state} = State.apply_action(state, Attack.new("me"))
+      {_, state} = GameState.apply_action(state, Attack.new("me"))
 
       {alive, dead} =
         state
-        |> State.coalesce()
+        |> GameState.coalesce()
         |> Map.get({2, 3})
         |> Enum.split_with(fn {_player, status} -> status == :alive end)
 

@@ -6,7 +6,7 @@ defmodule MMO.Actions.Move do
   """
 
   alias MMO.{Action, Board}
-  alias MMO.Game.State
+  alias MMO.GameState
 
   @opaque t :: %__MODULE__{}
 
@@ -18,9 +18,9 @@ defmodule MMO.Actions.Move do
   def new(player, coord), do: %__MODULE__{player: player, to: coord}
 
   defimpl Action do
-    def apply(%MMO.Actions.Move{} = move, %State{} = state) do
+    def apply(%MMO.Actions.Move{} = move, %GameState{} = state) do
       %{player: player, to: destination} = move
-      State.move_player(state, player, destination)
+      GameState.move_player(state, player, destination)
     end
   end
 end
