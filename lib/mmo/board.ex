@@ -236,4 +236,8 @@ defmodule MMO.Board do
     def to_string(board),
       do: board |> MMO.Board.cells() |> Serialization.to_string()
   end
+
+  defguard is_coord(term)
+           when is_tuple(term) and tuple_size(term) == 2 and is_integer(elem(term, 0)) and
+                  is_integer(elem(term, 1))
 end

@@ -2,6 +2,8 @@ defmodule MMO.GameState do
   # TODO document
   @moduledoc false
 
+  import MMO.Board, only: [is_coord: 1]
+
   alias MMO.{Action, Board}
   alias MMO.Actions.{Attack, Move}
 
@@ -17,10 +19,10 @@ defmodule MMO.GameState do
   @typep player_renderer :: (cell_contents -> String.t())
   @type action :: Move.t()
 
-  # TODO add guards (e.g. player is String.t)
-
   @enforce_keys [:board, :player_info]
   defstruct [:board, :player_info]
+
+  defguardp is_player(term) when is_binary(term)
 
   @doc """
   Creates a new game state.
@@ -32,7 +34,7 @@ defmodule MMO.GameState do
   * `:players`: a list of players to spawn on the board
   """
   @spec new(Keyword.t()) :: t
-  def new(opts \\ []) do
+  def new(opts \\ []) when is_list(opts) do
     __MODULE__
     |> struct!(%{
       board: get_board(opts),
@@ -41,7 +43,7 @@ defmodule MMO.GameState do
     |> spawn_players(Keyword.get(opts, :players, []))
   end
 
-  defp get_board(opts) do
+  defp get_board(opts) when is_list(opts) do
     case Keyword.get(opts, :board) do
       nil ->
         {:ok, board} = Board.new()
@@ -59,7 +61,8 @@ defmodule MMO.GameState do
   change his location.
   """
   @spec spawn_player(t, player) :: t
-  def spawn_player(%__MODULE__{} = state, player), do: spawn_players(state, [player])
+  def spawn_player(%__MODULE__{} = state, player) when is_binary(player),
+    do: spawn_players(state, [player])
 
   @doc """
   Spawns the players in random locations.
@@ -95,7 +98,7 @@ defmodule MMO.GameState do
   end
 
   @spec sanitize_spawn_location(t, coordinate) :: coordinate
-  defp sanitize_spawn_location(%__MODULE__{} = state, coord) do
+  defp sanitize_spawn_location(%__MODULE__{} = state, coord) when is_coord(coord) do
     case Board.walkable?(state.board, coord) do
       true -> coord
       false -> Board.random_walkable_cell(state.board)
@@ -106,7 +109,8 @@ defmodule MMO.GameState do
   def apply_action(%__MODULE__{} = state, action), do: Action.apply(action, state)
 
   @doc false
-  def move_player(%__MODULE__{board: board} = state, %Move{player: player, to: destination}) do
+  def move_player(%__MODULE__{board: board} = state, %Move{player: player, to: destination})
+      when is_player(player) and is_coord(destination) do
     with true <- Board.walkable?(board, destination),
          origin when not is_nil(origin) <- current_position(state, player),
          true <- Board.neighbors?(origin, destination) do
@@ -132,12 +136,13 @@ defmodule MMO.GameState do
     do: get_in(player_info, [player, :position])
 
   @doc false
-  def player_attack(%__MODULE__{} = state, %Attack{player: player}) do
+  def player_attack(%__MODULE__{} = state, %Attack{player: player}) when is_player(player) do
     state
     |> kill_players(get_in(state.player_info, [player, :position]), except: [player])
   end
 
-  defp kill_players(%__MODULE__{} = state, center, opts) do
+  defp kill_players(%__MODULE__{} = state, center, opts)
+       when is_coord(center) and is_list(opts) do
     safe_players = opts |> Keyword.get(:except, []) |> MapSet.new()
 
     blast_radius = Board.blast_radius(state.board, center)
@@ -191,7 +196,7 @@ defmodule MMO.GameState do
 
   @spec render_row(Board.lookup_table(), non_neg_integer, non_neg_integer, player_renderer) ::
           iodata
-  defp render_row(board_cell_map, row, col_count, player_renderer) do
+  defp render_row(%{} = board_cell_map, row, col_count, player_renderer) do
     rendered_cells =
       Enum.map(
         0..(col_count - 1),
@@ -212,7 +217,7 @@ defmodule MMO.GameState do
 
   @doc false
   @spec player_renderer(current_player :: player) :: player_renderer
-  def player_renderer(current_player) do
+  def player_renderer(current_player) when is_player(current_player) do
     fn players_in_cell ->
       case Map.get(players_in_cell, current_player) do
         nil -> render_other_players(players_in_cell)
@@ -229,7 +234,7 @@ defmodule MMO.GameState do
 
   defp render_other_players(%{} = players) when map_size(players) == 0, do: " "
 
-  defp render_other_players(players) do
+  defp render_other_players(%{} = players) do
     players
     |> Enum.filter(fn {_player, status} -> status == :alive end)
     |> Enum.count()
