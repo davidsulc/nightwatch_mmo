@@ -9,21 +9,32 @@ defmodule MMO.Game do
   @type coordinate :: MMO.Board.coordinate()
 
   @name __MODULE__
+  @registry Registry.MMO.Games
 
-  def start_link(name \\ @name, opts \\ []) when is_atom(name) and is_list(opts) do
-    GenServer.start_link(__MODULE__, opts, name: name)
+  def start_link(opts \\ []) when is_list(opts) do
+    {name, opts} = Keyword.pop(opts, :name, @name)
+    GenServer.start_link(__MODULE__, opts, name: via_tuple(name))
   end
 
+  defp via_tuple(name), do: {:via, Registry, {@registry, name}}
+
   def join(game \\ @name, player) do
-    GenServer.call(game, {:join, player})
+    call_valid_game(game, {:join, player})
   end
 
   def move(game \\ @name, player, destination) do
-    GenServer.call(game, {:move, player, destination})
+    call_valid_game(game, {:move, player, destination})
   end
 
   def attack(game \\ @name, player) do
-    GenServer.call(game, {:attack, player})
+    call_valid_game(game, {:attack, player})
+  end
+
+  defp call_valid_game(game, message) do
+    case Registry.lookup(@registry, game) do
+      [{pid, _}] -> GenServer.call(pid, message)
+      [] -> {:error, :invalid_game}
+    end
   end
 
   def init(opts) do

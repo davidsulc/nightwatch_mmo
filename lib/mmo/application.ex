@@ -4,8 +4,12 @@ defmodule MMO.Application do
   use Application
 
   def start(_type, _args) do
+    max_concurrent_games = Application.get_env(:mmo, :max_games, :infinity)
+
     children = [
-      {DynamicSupervisor, name: MMO.GamesSup, strategy: :one_for_one}
+      {Registry, keys: :unique, name: Registry.MMO.Games},
+      {DynamicSupervisor,
+       name: MMO.games_sup(), strategy: :one_for_one, max_children: max_concurrent_games}
     ]
 
     opts = [strategy: :one_for_one, name: MMO.Supervisor]
