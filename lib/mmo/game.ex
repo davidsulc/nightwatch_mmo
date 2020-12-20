@@ -18,24 +18,26 @@ defmodule MMO.Game do
 
   defp via_tuple(name), do: {:via, Registry, {@registry, name}}
 
-  def join(game \\ @name, player) do
-    call_valid_game(game, {:join, player})
-  end
+  def join(game \\ @name, player), do: call(game, {:join, player})
 
-  def move(game \\ @name, player, destination) do
-    call_valid_game(game, {:move, player, destination})
-  end
+  def move(game \\ @name, player, destination), do: call(game, {:move, player, destination})
 
-  def attack(game \\ @name, player) do
-    call_valid_game(game, {:attack, player})
-  end
+  def attack(game \\ @name, player), do: call(game, {:attack, player})
 
-  defp call_valid_game(game, message) do
-    case Registry.lookup(@registry, game) do
-      [{pid, _}] -> GenServer.call(pid, message)
+  @spec call(game, message :: any) :: any when game: String.t() | GenServer.server()
+
+  defp call(game, message) when is_binary(game) do
+    case lookup(game) do
+      [{pid, _}] -> call(pid, message)
       [] -> {:error, :invalid_game}
     end
   end
+
+  defp call(server, message), do: GenServer.call(server, message)
+
+  defp lookup(game), do: Registry.lookup(@registry, game)
+
+  def monitor(game), do: game |> lookup() |> Process.monitor()
 
   def init(opts) do
     GameState.new(opts)

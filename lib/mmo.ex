@@ -26,6 +26,7 @@ defmodule MMO do
   end
 
   # TODO document
+  defdelegate monitor(game), to: MMO.Game
   defdelegate join(game, player), to: MMO.Game
   defdelegate move(game, player, destination), to: MMO.Game
   defdelegate attack(game, player), to: MMO.Game
