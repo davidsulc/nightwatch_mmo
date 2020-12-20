@@ -274,4 +274,25 @@ defmodule MMO.GameStateTest do
       assert Enum.count(dead) > 0
     end
   end
+
+  test "new/1 returns an error if the board is too big" do
+    {:ok, board} =
+      MMO.Board.new("""
+      ######
+      #    #
+      # ####
+      #    #
+      #    #
+      #    #
+      ######
+      """)
+
+    assert {:ok, _} = GameState.new(max_board_dimension: 7, board: board)
+
+    assert {:error, :max_board_dimension_exceeded} =
+             GameState.new(max_board_dimension: 6, board: board)
+
+    assert {:error, {:invalid_option, :max_board_dimension}} =
+             GameState.new(max_board_dimension: -1, board: board)
+  end
 end

@@ -35,17 +35,28 @@ defmodule MMO.GameState do
 
   * `:board`: the `MMO.Board.t/0` the game should use. If none is provided,
      a board instance will be created.
-  * `:players`: a list of players to spawn on the board
+  * `:max_board_dimension`: a non-negative integer indicating the
+     maximum dimension the board may have. If the board's height or
+     width exceed this value, `{:error, :max_board_dimension_exceeded}` is returned.
+     `{:error, {:invalid_option, :max_board_dimension}}` will be returned if an invalid
+     value is provided.
   """
-  @spec new(Keyword.t()) :: {:ok, t}
+  @spec new(Keyword.t()) ::
+          {:ok, t} | {:error, {:invalid_option, option :: atom} | :max_board_dimension_exceeded}
   def new(opts \\ []) when is_list(opts) do
-    state =
-      struct!(__MODULE__, %{
-        board: get_board(opts),
-        player_info: %{}
-      })
+    board = get_board(opts)
 
-    {:ok, state}
+    with {:max_dim, true} <- {:max_dim, member_option_valid?(opts, :max_board_dimension)},
+         {:board_dim, true} <-
+           {:board_dim, board_dimensions_valid?(board, Keyword.get(opts, :max_board_dimension))} do
+      {:ok, struct!(__MODULE__, %{board: board, player_info: %{}})}
+    else
+      {:max_dim, false} ->
+        {:error, {:invalid_option, :max_board_dimension}}
+
+      {:board_dim, false} ->
+        {:error, :max_board_dimension_exceeded}
+    end
   end
 
   @spec get_board(Keyword.t()) :: Board.t()
@@ -58,6 +69,22 @@ defmodule MMO.GameState do
       board ->
         board
     end
+  end
+
+  defp member_option_valid?(opts, name), do: option_valid?(name, Keyword.get(opts, name))
+
+  defp option_valid?(:max_board_dimension, nil), do: true
+  defp option_valid?(:max_board_dimension, dim) when is_integer(dim) and dim > 0, do: true
+  defp option_valid?(:max_board_dimension, _), do: false
+
+  @spec board_dimensions_valid?(Board.t(), non_neg_integer) :: boolean
+
+  defp board_dimensions_valid?(_board, nil), do: true
+
+  defp board_dimensions_valid?(board, max_dimension)
+       when is_integer(max_dimension) and max_dimension > 0 do
+    %{rows: rows, cols: cols} = Board.dimensions(board)
+    rows <= max_dimension && cols <= max_dimension
   end
 
   @doc """
