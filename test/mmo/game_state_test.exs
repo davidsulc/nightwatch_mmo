@@ -295,4 +295,13 @@ defmodule MMO.GameStateTest do
     assert {:error, {:invalid_option, :max_board_dimension}} =
              GameState.new(max_board_dimension: -1, board: board)
   end
+
+  test "a maximum player count is enforced if provided" do
+    assert {:error, {:invalid_option, :max_players}} = GameState.new(max_players: 1)
+
+    {:ok, state} = GameState.new(max_players: 2)
+    {:ok, state} = GameState.spawn_player(state, "foo")
+    {:ok, state} = GameState.spawn_player(state, "bar")
+    assert {{:error, :max_players}, _} = GameState.spawn_player(state, "baz")
+  end
 end

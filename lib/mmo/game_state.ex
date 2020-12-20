@@ -20,11 +20,11 @@ defmodule MMO.GameState do
   @type action :: Attack.t() | Move.t()
   @type action_error :: player_error | move_error
   @typep player_error :: :invalid_player | :dead_player
-  @typep spawn_error :: :already_spawned
+  @typep spawn_error :: :already_spawned | :max_players
   @typep move_error :: :unwalkable_destination | :unreachable_destination
 
-  @enforce_keys [:board, :player_info]
-  defstruct [:board, :player_info]
+  @enforce_keys [:board, :player_info, :max_player_count]
+  defstruct [:board, :player_info, :max_player_count]
 
   defguardp is_player(term) when is_binary(term)
 
@@ -40,22 +40,34 @@ defmodule MMO.GameState do
      width exceed this value, `{:error, :max_board_dimension_exceeded}` is returned.
      `{:error, {:invalid_option, :max_board_dimension}}` will be returned if an invalid
      value is provided.
+  * `:max_players`: a non-negative integer greater than 1 indicating the
+     maximum number of players the board may have. Once the player count has been reached,
+     it will not be possible to spawn a new player (see `MMO.GameState.spawn_player/2`).
+     `{:error, {:invalid_option, :max_players}}` will be returned if an invalid
+     value is provided.
   """
   @spec new(Keyword.t()) ::
           {:ok, t} | {:error, {:invalid_option, option :: atom} | :max_board_dimension_exceeded}
   def new(opts \\ []) when is_list(opts) do
     board = get_board(opts)
 
-    with {:max_dim, true} <- {:max_dim, member_option_valid?(opts, :max_board_dimension)},
+    with {:max_players, true} <- {:max_players, member_option_valid?(opts, :max_players)},
+         {:max_board_dimension, true} <-
+           {:max_board_dimension, member_option_valid?(opts, :max_board_dimension)},
          {:board_dim, true} <-
            {:board_dim, board_dimensions_valid?(board, Keyword.get(opts, :max_board_dimension))} do
-      {:ok, struct!(__MODULE__, %{board: board, player_info: %{}})}
+      {:ok,
+       struct!(__MODULE__, %{
+         board: board,
+         player_info: %{},
+         max_player_count: Keyword.get(opts, :max_players)
+       })}
     else
-      {:max_dim, false} ->
-        {:error, {:invalid_option, :max_board_dimension}}
-
       {:board_dim, false} ->
         {:error, :max_board_dimension_exceeded}
+
+      {invalid_option_name, false} when is_atom(invalid_option_name) ->
+        {:error, {:invalid_option, invalid_option_name}}
     end
   end
 
@@ -76,6 +88,9 @@ defmodule MMO.GameState do
   defp option_valid?(:max_board_dimension, nil), do: true
   defp option_valid?(:max_board_dimension, dim) when is_integer(dim) and dim > 0, do: true
   defp option_valid?(:max_board_dimension, _), do: false
+  defp option_valid?(:max_players, nil), do: true
+  defp option_valid?(:max_players, max) when is_integer(max) and max > 1, do: true
+  defp option_valid?(:max_players, _), do: false
 
   @spec board_dimensions_valid?(Board.t(), non_neg_integer) :: boolean
 
@@ -92,8 +107,13 @@ defmodule MMO.GameState do
 
   Players will only be spawned on walkable cells. Spawning an existing player will
   change his location.
+
+  Errors:
+
+  * `:already_spawned` if the player is already in the game
+  * `:max_players` if the maximum player count for the game has been reached
   """
-  @spec spawn_player(t, player) :: {:ok, t}
+  @spec spawn_player(t, player) :: {:ok, t} | {:error, spawn_error}
   def spawn_player(%__MODULE__{} = state, player) when is_binary(player),
     do: spawn_player_at(state, player, Board.random_walkable_cell(state.board))
 
@@ -101,6 +121,15 @@ defmodule MMO.GameState do
   # he will be spawned in a random location instead
   @doc false
   @spec spawn_player_at(t, player, coordinate) :: {:ok, t} | {:error, spawn_error}
+
+  def spawn_player_at(
+        %__MODULE__{max_player_count: max, player_info: %{} = player_info} = state,
+        _player,
+        _coord
+      )
+      when not is_nil(max) and map_size(player_info) >= max,
+      do: {{:error, :max_players}, state}
+
   def spawn_player_at(%__MODULE__{} = state, player, coord)
       when is_player(player) and is_coord(coord) do
     case Map.get(state.player_info, player) do
