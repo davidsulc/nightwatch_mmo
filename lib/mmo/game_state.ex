@@ -24,7 +24,7 @@ defmodule MMO.GameState do
   @typep move_error :: :unwalkable_destination | :unreachable_destination
 
   @enforce_keys [:board, :player_info, :max_player_count]
-  defstruct [:board, :player_info, :max_player_count]
+  defstruct [:board, :player_info, :max_player_count, :meta]
 
   defguardp is_player(term) when is_binary(term)
 
@@ -113,14 +113,14 @@ defmodule MMO.GameState do
   * `:already_spawned` if the player is already in the game
   * `:max_players` if the maximum player count for the game has been reached
   """
-  @spec spawn_player(t, player) :: {:ok, t} | {:error, spawn_error}
-  def spawn_player(%__MODULE__{} = state, player) when is_binary(player),
+  @spec spawn_player(t, player) :: {:ok, t} | {{:error, spawn_error}, t}
+  def spawn_player(%__MODULE__{} = state, player) when is_player(player),
     do: spawn_player_at(state, player, Board.random_walkable_cell(state.board))
 
   # If the player cannot be spawned at the desired location (e.g. cell isn't walkable),
   # he will be spawned in a random location instead
   @doc false
-  @spec spawn_player_at(t, player, coordinate) :: {:ok, t} | {:error, spawn_error}
+  @spec spawn_player_at(t, player, coordinate) :: {:ok, t} | {{:error, spawn_error}, t}
 
   def spawn_player_at(
         %__MODULE__{max_player_count: max, player_info: %{} = player_info} = state,
@@ -133,14 +133,30 @@ defmodule MMO.GameState do
   def spawn_player_at(%__MODULE__{} = state, player, coord)
       when is_player(player) and is_coord(coord) do
     case Map.get(state.player_info, player) do
-      nil ->
-        player_state = %{position: sanitize_spawn_location(state, coord), status: :alive}
-
-        {:ok, %{state | player_info: Map.put(state.player_info, player, player_state)}}
-
-      _ ->
-        {{:error, :already_spawned}, state}
+      nil -> {:ok, position_player_at(state, player, coord)}
+      _ -> {{:error, :already_spawned}, state}
     end
+  end
+
+  @doc false
+  @spec respawn_player(t, player) :: {:ok, t} | {{:error, :invalid_player}, t}
+  def respawn_player(%__MODULE__{} = state, player) when is_player(player),
+    do: respawn_player_at(state, player, Board.random_walkable_cell(state.board))
+
+  @doc false
+  @spec respawn_player_at(t, player, coordinate) :: {:ok, t} | {{:error, :invalid_player}, t}
+  def respawn_player_at(%__MODULE__{} = state, player, coord)
+      when is_player(player) and is_coord(coord) do
+    case player_exists?(state, player) do
+      true -> {:ok, position_player_at(state, player, coord)}
+      false -> {{:error, :invalid_player}, state}
+    end
+  end
+
+  @spec position_player_at(t, player, coordinate) :: t
+  defp position_player_at(%__MODULE__{} = state, player, coord) do
+    player_state = %{position: sanitize_spawn_location(state, coord), status: :alive}
+    %{state | player_info: Map.put(state.player_info, player, player_state)}
   end
 
   @spec sanitize_spawn_location(t, coordinate) :: coordinate
@@ -197,7 +213,7 @@ defmodule MMO.GameState do
     do: get_in(player_info, [player, :position])
 
   @doc false
-  @spec player_attack(t, player) :: {:ok, t}
+  @spec player_attack(t, player) :: {:ok, t} | {:error, player_error}
   def player_attack(%__MODULE__{} = state, player) when is_player(player) do
     case verify_player(state, player) do
       :ok ->
@@ -215,21 +231,25 @@ defmodule MMO.GameState do
     safe_players = opts |> Keyword.get(:except, []) |> MapSet.new()
     blast_radius = Board.blast_radius(state.board, center)
 
-    player_info =
-      state.player_info
-      |> Enum.map(fn player_kv ->
+    player_kvs_to_kill =
+      Enum.reduce(state.player_info, [], fn player_kv, acc ->
         case player_exposed?(player_kv, blast_radius, safe_players) do
-          true -> kill_player(player_kv)
-          false -> player_kv
+          true -> [player_kv | acc]
+          false -> acc
         end
       end)
-      |> Enum.into(%{})
+
+    player_info =
+      Enum.reduce(player_kvs_to_kill, state.player_info, fn {player, player_state}, player_info ->
+        Map.put(player_info, player, kill_player(player_state))
+      end)
 
     %{state | player_info: player_info}
+    |> Map.put(:meta, %{players_killed: Enum.map(player_kvs_to_kill, fn {k, _v} -> k end)})
   end
 
-  @spec kill_player({player, player_state}) :: {player, player_state}
-  defp kill_player({player, player_state}), do: {player, %{player_state | status: :dead}}
+  @spec kill_player(player_state) :: player_state
+  defp kill_player(player_state), do: %{player_state | status: :dead}
 
   @spec player_exposed?({player, player_state}, MapSet.t(coordinate), MapSet.t(player)) :: boolean
   defp player_exposed?({player, player_state}, blast_radius, safe_players) do
@@ -254,6 +274,10 @@ defmodule MMO.GameState do
       Map.put(acc, pos, updated_cell)
     end)
   end
+
+  @spec drop_players(t, [player]) :: t
+  def drop_players(%__MODULE__{} = state, players) when is_list(players),
+    do: %{state | player_info: Map.drop(state.player_info, players)}
 
   @doc false
   @spec render(t, player_renderer) :: String.t()
