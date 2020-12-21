@@ -12,8 +12,7 @@ defmodule MMO.PlaySession do
   defmodule State do
     defstruct [
       :player_id,
-      :player_position,
-      :player_status,
+      :player_state,
       :game,
       :game_state,
       :latest_frame_number
@@ -31,6 +30,10 @@ defmodule MMO.PlaySession do
   end
 
   def attack(session), do: GenServer.call(session, :attack)
+
+  def player_state(session), do: GenServer.call(session, :player_state)
+
+  def game_state(session), do: GenServer.call(session, :game_state)
 
   def init(args) do
     game_name = Keyword.fetch!(args, :game_name)
@@ -50,6 +53,12 @@ defmodule MMO.PlaySession do
 
   def handle_call(:attack, _from, state),
     do: {:reply, Game.attack(state.game, state.player_id), state}
+
+  def handle_call(:player_state, _from, %{player_state: player_state} = state),
+    do: {:reply, player_state, state}
+
+  def handle_call(:game_state, _from, %{game_state: game_state} = state),
+    do: {:reply, game_state, state}
 
   def handle_info({:game_state, frame}, state) do
     {:noreply, update_game(state, frame)}
@@ -91,7 +100,7 @@ defmodule MMO.PlaySession do
           state
           |> Map.replace!(:game_state, game_state)
           |> Map.replace!(:latest_frame_number, frame_number)
-          |> update_player_info()
+          |> update_player_state()
 
         {:ok, state}
 
@@ -100,7 +109,7 @@ defmodule MMO.PlaySession do
     end
   end
 
-  defp update_player_info(%State{player_id: player_id, game_state: game_state} = state) do
+  defp update_player_state(%State{player_id: player_id, game_state: game_state} = state) do
     {coord, players_in_cell} =
       Enum.find(game_state, fn
         {_coord, empty_cell} when is_atom(empty_cell) ->
@@ -110,20 +119,21 @@ defmodule MMO.PlaySession do
           Map.has_key?(cell_contents, player_id)
       end)
 
-    %{state | player_status: Map.get(players_in_cell, player_id), player_position: coord}
+    %{state | player_state: %{position: coord, status: Map.get(players_in_cell, player_id)}}
   end
 
   defp update_game(%State{latest_frame_number: latest_number} = state, {frame_number, game_state})
        when frame_number > latest_number,
        do:
-         update_player_info(%{state | latest_frame_number: frame_number, game_state: game_state})
+         update_player_state(%{state | latest_frame_number: frame_number, game_state: game_state})
 
   # we silently drop game update info that is obsolete (e.g. delayed message)
   defp update_game(%State{} = state, _old_frame), do: state
 
-  defp compute_coord(%State{player_position: pos}, direction)
-       when is_direction(direction),
-       do: neighbor_coord(pos, direction)
+  defp compute_coord(%State{player_state: %{position: pos}}, direction)
+       when is_direction(direction) do
+    neighbor_coord(pos, direction)
+  end
 
   defp neighbor_coord({row, col}, :up), do: {row - 1, col}
   defp neighbor_coord({row, col}, :down), do: {row + 1, col}
