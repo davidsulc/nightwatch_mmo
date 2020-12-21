@@ -1,4 +1,5 @@
 defmodule MMO.Utils do
+  @type lookup_table :: MMO.Board.lookup_table()
   @type coordinate :: MMO.Board.coordinate()
   @typep player_status :: :alive | :dead
   @type coalesced_board :: %{coordinate => coalesced_cell}
@@ -26,7 +27,7 @@ defmodule MMO.Utils do
     |> IO.iodata_to_binary()
   end
 
-  @spec render_row(Board.lookup_table(), non_neg_integer, non_neg_integer, player_renderer) ::
+  @spec render_row(lookup_table, non_neg_integer, non_neg_integer, player_renderer) ::
           iodata
   defp render_row(%{} = board_cell_map, row, col_count, player_renderer) do
     rendered_cells =
