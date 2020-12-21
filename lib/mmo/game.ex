@@ -203,21 +203,19 @@ defmodule MMO.Game do
   end
 
   defp broadcast_state_changes(%State{player_pids: player_pids, game_state: game_state} = state) do
-    game_state_frame = to_frame(game_state)
-
     player_pids
     |> Map.values()
     |> Enum.each(
       &(&1
         |> MapSet.to_list()
-        |> Enum.each(fn pid -> send_frame(pid, game_state_frame) end))
+        |> Enum.each(fn pid -> send_frame(pid, to_frame(game_state)) end))
     )
 
     state
   end
 
-  defp send_frame(pid, frame) when is_pid(pid), do: send(pid, {:game_state, frame})
+  defp send_frame(pid, frame) when is_pid(pid), do: send(pid, {:board_state, frame})
 
   defp to_frame(%GameState{} = game_state),
-    do: {:erlang.system_time(:nano_seconds), GameState.coalesce(game_state)}
+    do: {:erlang.system_time(:nano_seconds), GameState.to_frame(game_state)}
 end

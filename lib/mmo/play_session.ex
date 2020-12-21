@@ -14,7 +14,8 @@ defmodule MMO.PlaySession do
       :player_id,
       :player_state,
       :game,
-      :game_state,
+      :board_state,
+      :board_dimensions,
       :latest_frame_number
     ]
   end
@@ -33,7 +34,9 @@ defmodule MMO.PlaySession do
 
   def player_state(session), do: GenServer.call(session, :player_state)
 
-  def game_state(session), do: GenServer.call(session, :game_state)
+  def game_info(session), do: GenServer.call(session, :game_info)
+
+  def view(session), do: GenServer.call(session, :render_to_string)
 
   def init(args) do
     game_name = Keyword.fetch!(args, :game_name)
@@ -57,10 +60,25 @@ defmodule MMO.PlaySession do
   def handle_call(:player_state, _from, %{player_state: player_state} = state),
     do: {:reply, player_state, state}
 
-  def handle_call(:game_state, _from, %{game_state: game_state} = state),
-    do: {:reply, game_state, state}
+  def handle_call(
+        :game_info,
+        _from,
+        %{board_state: board_state, board_dimensions: board_dimensions} = state
+      ),
+      do: {:reply, %{state: board_state, board_dimensions: board_dimensions}, state}
 
-  def handle_info({:game_state, frame}, state) do
+  def handle_call(
+        :render_to_string,
+        _from,
+        %{board_state: board_state, player_id: player_id} = state
+      ) do
+    player_renderer = MMO.GameState.player_renderer(player_id)
+    rendered_game = MMO.GameState.render(board_state, player_renderer)
+
+    {:reply, rendered_game, state}
+  end
+
+  def handle_info({:board_state, frame}, state) do
     {:noreply, update_game(state, frame)}
   end
 
@@ -91,14 +109,15 @@ defmodule MMO.PlaySession do
 
   defp join_game(%State{game: game, player_id: player_id} = state) do
     case MMO.join(game, player_id) do
-      {:ok, {frame_number, game_state}} ->
+      {:ok, {frame_number, %{board_state: board_state, dimensions: board_dimensions}}} ->
         game
         |> MMO.whereis()
         |> Process.monitor()
 
         state =
           state
-          |> Map.replace!(:game_state, game_state)
+          |> Map.replace!(:board_state, board_state)
+          |> Map.replace!(:board_dimensions, board_dimensions)
           |> Map.replace!(:latest_frame_number, frame_number)
           |> update_player_state()
 
@@ -109,9 +128,9 @@ defmodule MMO.PlaySession do
     end
   end
 
-  defp update_player_state(%State{player_id: player_id, game_state: game_state} = state) do
+  defp update_player_state(%State{player_id: player_id, board_state: board_state} = state) do
     {coord, players_in_cell} =
-      Enum.find(game_state, fn
+      Enum.find(board_state, fn
         {_coord, empty_cell} when is_atom(empty_cell) ->
           false
 
@@ -122,10 +141,18 @@ defmodule MMO.PlaySession do
     %{state | player_state: %{position: coord, status: Map.get(players_in_cell, player_id)}}
   end
 
-  defp update_game(%State{latest_frame_number: latest_number} = state, {frame_number, game_state})
+  defp update_game(
+         %State{latest_frame_number: latest_number} = state,
+         {frame_number, %{state: board_state, dimensions: board_dimensions}}
+       )
        when frame_number > latest_number,
        do:
-         update_player_state(%{state | latest_frame_number: frame_number, game_state: game_state})
+         update_player_state(%{
+           state
+           | latest_frame_number: frame_number,
+             board_state: board_state,
+             board_dimensions: board_dimensions
+         })
 
   # we silently drop game update info that is obsolete (e.g. delayed message)
   defp update_game(%State{} = state, _old_frame), do: state

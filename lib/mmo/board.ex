@@ -22,6 +22,8 @@ defmodule MMO.Board do
   @typedoc false
   @type lookup_table :: %{coordinate => cell}
 
+  @type dimensions :: %{rows: non_neg_integer, cols: non_neg_integer}
+
   @typedoc """
   Represents a coordinate on the board.
 
@@ -233,7 +235,7 @@ defmodule MMO.Board do
   @doc """
   Returns the board's dimensions.
   """
-  @spec dimensions(t) :: %{rows: non_neg_integer, cols: non_neg_integer}
+  @spec dimensions(t) :: dimensions
   def dimensions(%__MODULE__{dimensions: dimensions}), do: dimensions
 
   @spec validate(matrix) :: :ok | validation_error

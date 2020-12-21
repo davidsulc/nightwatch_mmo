@@ -279,6 +279,14 @@ defmodule MMO.GameState do
   def drop_players(%__MODULE__{} = state, players) when is_list(players),
     do: %{state | player_info: Map.drop(state.player_info, players)}
 
+  @spec to_frame(t) :: %{board_state: coalesced_board, dimensions: Board.dimensions()}
+  def to_frame(%__MODULE__{board: board} = state) do
+    %{
+      board_state: coalesce(state),
+      dimensions: Board.dimensions(board)
+    }
+  end
+
   @doc false
   @spec render(t, player_renderer) :: String.t()
   def render(%__MODULE__{} = state, player_renderer) do
