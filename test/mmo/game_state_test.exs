@@ -6,7 +6,7 @@ defmodule MMO.GameStateTest do
   alias MMO.Actions.{Attack, Move}
 
   defp render_state(state) do
-    GameState.render(state, GameState.player_renderer("me"))
+    GameState.render(state, "me")
   end
 
   defp assert_action(state, pre, action, post) do

@@ -22,6 +22,10 @@ defmodule MMO.PlaySession do
 
   defguardp is_direction(term) when term in [:left, :right, :up, :down]
 
+  def start_link(game_name) when is_binary(game_name) do
+    GenServer.start_link(__MODULE__, game_name: game_name, player_id: inspect(make_ref()))
+  end
+
   def start_link(game_name, player_id) when is_binary(game_name) and is_binary(player_id) do
     GenServer.start_link(__MODULE__, game_name: game_name, player_id: player_id)
   end
@@ -36,7 +40,7 @@ defmodule MMO.PlaySession do
 
   def game_info(session), do: GenServer.call(session, :game_info)
 
-  def view(session), do: GenServer.call(session, :render_to_string)
+  def to_string(session), do: GenServer.call(session, :render_to_string)
 
   def init(args) do
     game_name = Keyword.fetch!(args, :game_name)
@@ -48,41 +52,33 @@ defmodule MMO.PlaySession do
     end
   end
 
-  def handle_call({:move, direction}, _from, state) when is_direction(direction) do
+  def handle_call({:move, direction}, _from, %State{} = state) when is_direction(direction) do
     destination = compute_coord(state, direction)
 
     {:reply, Game.move(state.game, state.player_id, destination), state}
   end
 
-  def handle_call(:attack, _from, state),
+  def handle_call(:attack, _from, %State{} = state),
     do: {:reply, Game.attack(state.game, state.player_id), state}
 
-  def handle_call(:player_state, _from, %{player_state: player_state} = state),
+  def handle_call(:player_state, _from, %State{player_state: player_state} = state),
     do: {:reply, player_state, state}
 
-  def handle_call(
-        :game_info,
-        _from,
-        %{board_state: board_state, board_dimensions: board_dimensions} = state
-      ),
-      do: {:reply, %{state: board_state, board_dimensions: board_dimensions}, state}
-
-  def handle_call(
-        :render_to_string,
-        _from,
-        %{board_state: board_state, player_id: player_id} = state
-      ) do
-    player_renderer = MMO.GameState.player_renderer(player_id)
-    rendered_game = MMO.GameState.render(board_state, player_renderer)
-
-    {:reply, rendered_game, state}
+  def handle_call(:game_info, _from, %State{} = state) do
+    %{board_state: board_state, board_dimensions: board_dimensions} = state
+    {:reply, %{state: board_state, board_dimensions: board_dimensions}, state}
   end
 
-  def handle_info({:board_state, frame}, state) do
+  def handle_call(:render_to_string, _from, %State{} = state) do
+    %{board_state: board_state, board_dimensions: dimensions, player_id: player_id} = state
+    {:reply, MMO.Utils.render(board_state, dimensions, player_id), state}
+  end
+
+  def handle_info({:board_state, frame}, %State{} = state) do
     {:noreply, update_game(state, frame)}
   end
 
-  def handle_info({:reconnect, failed_attempts}, state) do
+  def handle_info({:reconnect, failed_attempts}, %State{} = state) do
     case join_game(state) do
       {:ok, state} ->
         {:noreply, state}
@@ -96,19 +92,19 @@ defmodule MMO.PlaySession do
     end
   end
 
-  def handle_info({:DOWN, _, _, _, _}, state) do
+  def handle_info({:DOWN, _, _, _, _}, %State{} = state) do
     Process.send_after(self(), {:reconnect, 0}, @reconnect_delay)
 
     {:noreply, state}
   end
 
-  def handle_info(msg, state) do
+  def handle_info(msg, %State{} = state) do
     :logger.error("Unexpected message: #{inspect(msg)}")
     {:noreply, state}
   end
 
   defp join_game(%State{game: game, player_id: player_id} = state) do
-    case MMO.join(game, player_id) do
+    case Game.join(game, player_id) do
       {:ok, {frame_number, %{board_state: board_state, dimensions: board_dimensions}}} ->
         game
         |> MMO.whereis()
@@ -141,21 +137,23 @@ defmodule MMO.PlaySession do
     %{state | player_state: %{position: coord, status: Map.get(players_in_cell, player_id)}}
   end
 
-  defp update_game(
-         %State{latest_frame_number: latest_number} = state,
-         {frame_number, %{state: board_state, dimensions: board_dimensions}}
-       )
-       when frame_number > latest_number,
-       do:
-         update_player_state(%{
-           state
-           | latest_frame_number: frame_number,
-             board_state: board_state,
-             board_dimensions: board_dimensions
-         })
+  defp update_game(%State{latest_frame_number: latest_number} = state, {frame_number, update}) do
+    case frame_number > latest_number do
+      true ->
+        %{board_state: board_state, dimensions: board_dimensions} = update
 
-  # we silently drop game update info that is obsolete (e.g. delayed message)
-  defp update_game(%State{} = state, _old_frame), do: state
+        update_player_state(%{
+          state
+          | latest_frame_number: frame_number,
+            board_state: board_state,
+            board_dimensions: board_dimensions
+        })
+
+      false ->
+        # we silently drop game update info that is obsolete (e.g. delayed message)
+        state
+    end
+  end
 
   defp compute_coord(%State{player_state: %{position: pos}}, direction)
        when is_direction(direction) do

@@ -16,9 +16,9 @@ defmodule MMO do
   the `:max_games` environment value.
   """
   # TODO document options
-  @spec new_game(String.t(), Keyword.t()) ::
+  @spec new(String.t(), Keyword.t()) ::
           DynamicSupervisor.on_start_child() | {:error, :max_games}
-  def new_game(name, opts \\ []) do
+  def new(name, opts \\ []) do
     case DynamicSupervisor.start_child(@games_sup, {MMO.Game, Keyword.put(opts, :name, name)}) do
       {:error, :max_children} -> {:error, :max_games}
       result -> result
@@ -26,8 +26,16 @@ defmodule MMO do
   end
 
   # TODO document
-  defdelegate join(game, player), to: MMO.Game
-  defdelegate move(game, player, destination), to: MMO.Game
-  defdelegate attack(game, player), to: MMO.Game
+  def puts(session) do
+    session
+    |> MMO.PlaySession.to_string()
+    |> IO.puts()
+  end
+
+  # TODO document
   defdelegate whereis(game), to: MMO.Game
+  defdelegate start_link(game), to: MMO.PlaySession
+  defdelegate start_link(game, player), to: MMO.PlaySession
+  defdelegate move(session, direction), to: MMO.PlaySession
+  defdelegate attack(session), to: MMO.PlaySession
 end
