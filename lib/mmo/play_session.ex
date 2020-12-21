@@ -1,6 +1,9 @@
 defmodule MMO.PlaySession do
   use GenServer
 
+  @reconnect_attempts 3
+  @reconnect_delay 100
+
   @type game_name :: String.t()
   @type player_id :: String.t()
 
@@ -30,23 +33,12 @@ defmodule MMO.PlaySession do
   def attack(session), do: GenServer.call(session, :attack)
 
   def init(args) do
-    # TODO monitor game -> rejoin on crash
     game_name = Keyword.fetch!(args, :game_name)
     player_id = Keyword.fetch!(args, :player_id)
 
-    case MMO.join(game_name, player_id) do
-      {:ok, {frame_number, game_state}} ->
-        initial_state = %State{
-          player_id: player_id,
-          game: game_name,
-          game_state: game_state,
-          latest_frame_number: frame_number
-        }
-
-        {:ok, update_player_info(initial_state)}
-
-      {:error, _} = error ->
-        {:stop, error}
+    case join_game(%State{player_id: player_id, game: game_name}) do
+      {:ok, state} -> {:ok, state}
+      {:error, _} = error -> {:stop, error}
     end
   end
 
@@ -63,9 +55,49 @@ defmodule MMO.PlaySession do
     {:noreply, update_game(state, frame)}
   end
 
+  def handle_info({:reconnect, failed_attempts}, state) do
+    case join_game(state) do
+      {:ok, state} ->
+        {:noreply, state}
+
+      {:error, _} = error when failed_attempts + 1 >= @reconnect_attempts ->
+        {:stop, error, state}
+
+      {:error, _} ->
+        Process.send_after(self(), {:reconnect, failed_attempts + 1}, @reconnect_delay)
+        {:noreply, state}
+    end
+  end
+
+  def handle_info({:DOWN, _, _, _, _}, state) do
+    Process.send_after(self(), {:reconnect, 0}, @reconnect_delay)
+
+    {:noreply, state}
+  end
+
   def handle_info(msg, state) do
     :logger.error("Unexpected message: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  defp join_game(%State{game: game, player_id: player_id} = state) do
+    case MMO.join(game, player_id) do
+      {:ok, {frame_number, game_state}} ->
+        game
+        |> MMO.whereis()
+        |> Process.monitor()
+
+        state =
+          state
+          |> Map.replace!(:game_state, game_state)
+          |> Map.replace!(:latest_frame_number, frame_number)
+          |> update_player_info()
+
+        {:ok, state}
+
+      {:error, _} = error ->
+        error
+    end
   end
 
   defp update_player_info(%State{player_id: player_id, game_state: game_state} = state) do

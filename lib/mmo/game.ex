@@ -109,6 +109,13 @@ defmodule MMO.Game do
 
   def attack(game \\ @name, player), do: call(game, {:attack, player})
 
+  def whereis(game \\ @name) do
+    case lookup(game) do
+      [{pid, _}] -> pid
+      [] -> nil
+    end
+  end
+
   @spec call(game, message :: any) :: any when game: String.t() | GenServer.server()
 
   defp call(game, message) when is_binary(game) do

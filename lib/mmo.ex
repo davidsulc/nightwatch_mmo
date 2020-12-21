@@ -29,4 +29,5 @@ defmodule MMO do
   defdelegate join(game, player), to: MMO.Game
   defdelegate move(game, player, destination), to: MMO.Game
   defdelegate attack(game, player), to: MMO.Game
+  defdelegate whereis(game), to: MMO.Game
 end
