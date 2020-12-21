@@ -7,7 +7,19 @@ defmodule MMO.MixProject do
       version: "0.1.0",
       elixir: "~> 1.10",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      releases: [
+        unix: release_for(:unix),
+        windows: release_for(:windows)
+      ],
+      default_release: :unix
+    ]
+  end
+
+  defp release_for(platform) when platform in [:unix, :windows] do
+    [
+      include_executables_for: [platform],
+      applications: [runtime_tools: :permanent]
     ]
   end
 
