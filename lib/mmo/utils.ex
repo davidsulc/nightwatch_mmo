@@ -15,7 +15,7 @@ defmodule MMO.Utils do
   @type cell_contents :: %{player => player_status}
   @type player :: String.t()
   @type player_status :: :alive | :dead
-  @type player_renderer :: (cell_contents -> rendered_cell)
+  @type cell_renderer :: (cell_contents -> rendered_cell)
   @type rendered_cell :: rendered_tile | rendered_contents
   @type rendered_tile :: rendered_wall | rendered_floor
 
@@ -83,50 +83,50 @@ defmodule MMO.Utils do
   * `*` is a cell containing over 9 live players (and any number of dead players)
   """
   @spec render(coalesced_board, board_dimensions, player) :: String.t()
-  def render(%{} = coalesced_board, %{rows: _, cols: _} = dimensions, player_or_player_renderer)
-      when is_binary(player_or_player_renderer),
-      do: render(coalesced_board, dimensions, player_renderer(player_or_player_renderer))
+  def render(%{} = coalesced_board, %{rows: _, cols: _} = dimensions, player_or_cell_renderer)
+      when is_binary(player_or_cell_renderer),
+      do: render(coalesced_board, dimensions, current_player_renderer(player_or_cell_renderer))
 
-  @spec render(coalesced_board, board_dimensions, player_renderer) :: String.t()
+  @spec render(coalesced_board, board_dimensions, cell_renderer) :: String.t()
   def render(
         %{} = coalesced_board,
         %{rows: row_count, cols: col_count},
-        player_or_player_renderer
+        player_or_cell_renderer
       )
       when is_integer(row_count) and row_count >= 0
       when is_integer(col_count) and col_count >= 0
-      when is_function(player_or_player_renderer, 1) do
+      when is_function(player_or_cell_renderer, 1) do
     (row_count - 1)..0
     |> Enum.reduce([], fn row, acc ->
-      [render_row(coalesced_board, row, col_count, player_or_player_renderer) | acc]
+      [render_row(coalesced_board, row, col_count, player_or_cell_renderer) | acc]
     end)
     |> IO.iodata_to_binary()
   end
 
-  @spec render_row(lookup_table, non_neg_integer, non_neg_integer, player_renderer) ::
+  @spec render_row(lookup_table, non_neg_integer, non_neg_integer, cell_renderer) ::
           iodata
-  defp render_row(%{} = board_cell_map, row, col_count, player_renderer) do
+  defp render_row(%{} = board_cell_map, row, col_count, cell_renderer) do
     rendered_cells =
       Enum.map(
         0..(col_count - 1),
         fn col ->
           board_cell_map
           |> Map.get({row, col})
-          |> render_cell(player_renderer)
+          |> render_cell(cell_renderer)
         end
       )
 
     [rendered_cells | "\n"]
   end
 
-  @spec render_cell(coalesced_cell, player_renderer) :: String.t()
+  @spec render_cell(coalesced_cell, cell_renderer) :: String.t()
   defp render_cell(:wall, _renderer), do: "#"
   defp render_cell(:floor, _renderer), do: " "
   defp render_cell(cell_contents, renderer), do: renderer.(cell_contents)
 
   @doc false
-  @spec player_renderer(current_player :: player | :none) :: player_renderer
-  def player_renderer(current_player) when is_binary(current_player) do
+  @spec current_player_renderer(current_player :: player | :none) :: cell_renderer
+  def current_player_renderer(current_player) when is_binary(current_player) do
     fn players_in_cell ->
       case Map.get(players_in_cell, current_player) do
         nil -> render_other_players(players_in_cell)

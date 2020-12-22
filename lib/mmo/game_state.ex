@@ -325,7 +325,7 @@ defmodule MMO.GameState do
     MMO.Utils.render(
       coalesce(state),
       Board.dimensions(board),
-      MMO.Utils.player_renderer(current_player)
+      MMO.Utils.current_player_renderer(current_player)
     )
   end
 end
