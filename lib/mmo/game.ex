@@ -15,7 +15,7 @@ defmodule MMO.Game do
 
   @name __MODULE__
   @registry Registry.MMO.Games
-  @respawn_delay 5_000
+  @respawn_delay if Mix.env() == :test, do: 100, else: 5_000
 
   @doc false
   def start_link(opts \\ []) when is_list(opts) do
@@ -58,11 +58,25 @@ defmodule MMO.Game do
 
   @doc false
   def init(opts) do
+    case Keyword.get(opts, :state) do
+      nil ->
+        case build_state(opts) do
+          {:ok, state} -> {:ok, state}
+          error -> {:stop, error}
+        end
+
+      state ->
+        {:ok, state}
+    end
+  end
+
+  @spec build_state(Keyword.t()) :: {:ok, State.t()} | {:error, term}
+  defp build_state(opts) do
     with {:ok, game_state} <- GameState.new(opts),
          {:ok, state} <- State.new(game_state) do
       {:ok, state}
     else
-      error -> {:stop, error}
+      {:error, _reason} = error -> error
     end
   end
 

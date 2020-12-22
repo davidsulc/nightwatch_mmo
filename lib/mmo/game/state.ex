@@ -3,6 +3,8 @@ defmodule MMO.Game.State do
 
   alias MMO.GameState
 
+  @type t :: %__MODULE__{}
+
   @enforce_keys [:game_state, :player_pids, :player_monitors]
   defstruct [:game_state, :player_pids, :player_monitors]
 
