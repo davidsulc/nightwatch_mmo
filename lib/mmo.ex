@@ -1,7 +1,8 @@
 defmodule MMO do
-  @moduledoc """
-  Documentation for `MMO`.
-  """
+  @moduledoc "README.md"
+             |> File.read!()
+             |> String.split("<!-- MDOC !-->")
+             |> Enum.fetch!(1)
 
   @games_sup MMO.GamesSup
 
@@ -16,7 +17,7 @@ defmodule MMO do
 
   * `:max_players`: a non-negative integer greater than 1 indicating the
      maximum number of players the board may have. Once the player count has been reached,
-     it will not be possible to spawn a new player (see `MMO.GameState.spawn_player/2`).
+     it will not be possible to spawn a new player.
      `{:error, {:invalid_option, :max_players}}` will be returned if an invalid
      value is provided.
 
@@ -24,6 +25,7 @@ defmodule MMO do
   the `:max_games` environment value.
   """
   # :board and :max_board_dimension options are also available.
+  # see `MMO.GameState.spawn_player/2` for maximum player count handling
   @spec new(String.t(), Keyword.t()) ::
           DynamicSupervisor.on_start_child() | {:error, :max_games}
   def new(name, opts \\ []) do
