@@ -4,8 +4,29 @@ defmodule MMO.PlaySession do
   @reconnect_attempts 3
   @reconnect_delay 100
 
+  @type coalesced_board :: %{coordinate => coalesced_cell}
+
+  @typedoc """
+  Represents a coordinate on the board.
+
+  `{0, 0}` refers to the top-left corner
+
+  `{1, 0}` refers to the left-most cell on the 2nd row
+  """
+  @type coordinate :: {row :: non_neg_integer, col :: non_neg_integer}
+
+  @type coalesced_cell :: empty_cell | cell_contents
+  @type empty_cell :: :floor | :wall
+  @type cell_contents :: %{player => player_status}
+  @type player :: String.t()
+  @type player_status :: :alive | :dead
+
   @type game_name :: String.t()
   @type player_id :: String.t()
+  @type direction :: :left | :right | :up | :down
+  @type action_error :: player_error | move_error
+  @type player_error :: :invalid_player | :dead_player
+  @type move_error :: :unwalkable_destination | :unreachable_destination
 
   alias MMO.Game
 
@@ -24,26 +45,44 @@ defmodule MMO.PlaySession do
 
   defguardp is_direction(term) when term in [:left, :right, :up, :down]
 
+  @doc "Joins the `game_name` game with a random player name"
+  @spec start_link(game_name) :: GenServer.on_start()
   def start_link(game_name) when is_binary(game_name) do
     GenServer.start_link(__MODULE__, game_name: game_name, player_id: inspect(make_ref()))
   end
 
+  @doc "Joins the `game_name` game with `player_id` as the player name"
+  @spec start_link(game_name, player_id) :: GenServer.on_start()
   def start_link(game_name, player_id) when is_binary(game_name) and is_binary(player_id) do
     GenServer.start_link(__MODULE__, game_name: game_name, player_id: player_id)
   end
 
+  @doc "Moves the player in `direction` direction, if possible."
+  @spec move(pid, direction) :: :ok | {:error, action_error}
   def move(session, direction) when is_direction(direction) do
     GenServer.call(session, {:move, direction})
   end
 
+  @doc "Makes the player attack."
+  @spec attack(pid) :: :ok | {:error, player_error}
   def attack(session), do: GenServer.call(session, :attack)
 
+  @doc "Returns the player state."
+  @spec player_state(pid) :: %{position: coordinate, status: :alive | :dead}
   def player_state(session), do: GenServer.call(session, :player_state)
 
+  @doc "Returns the game's state information."
+  @spec game_info(pid) :: %{
+          board_dimensions: %{cols: non_neg_integer, rows: non_neg_integer},
+          state: coalesced_board
+        }
   def game_info(session), do: GenServer.call(session, :game_info)
 
+  @doc "Returns a string representation of the game."
+  @spec to_string(pid) :: String.t()
   def to_string(session), do: GenServer.call(session, :render_to_string)
 
+  @doc false
   def init(args) do
     game_name = Keyword.fetch!(args, :game_name)
     player_id = Keyword.fetch!(args, :player_id)
@@ -161,6 +200,8 @@ defmodule MMO.PlaySession do
        when is_direction(direction) do
     neighbor_coord(pos, direction)
   end
+
+  defp compute_coord(%State{}, _invalid_direction), do: :error
 
   defp neighbor_coord({row, col}, :up), do: {row - 1, col}
   defp neighbor_coord({row, col}, :down), do: {row + 1, col}

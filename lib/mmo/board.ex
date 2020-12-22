@@ -2,14 +2,15 @@ defmodule MMO.Board do
   @moduledoc """
   Defines the game board.
 
-  Cells are referenced by {row, col} `t:coordinate/0` tuples, where each value is a non-negative integer.
+  Cells are referenced by {row, col} `t:MMO.Board.coordinate/0` tuples, where each value is a non-negative integer.
   """
   @moduledoc false
 
   alias __MODULE__.{Serialization, Validation}
 
   @typedoc "A game board instance."
-  @opaque t :: %__MODULE__{}
+  # @opaque t :: %__MODULE__{}
+  @type t :: %__MODULE__{}
 
   @typedoc "Board cell types"
   @type cell :: :wall | :floor

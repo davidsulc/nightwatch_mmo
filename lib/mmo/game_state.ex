@@ -8,7 +8,8 @@ defmodule MMO.GameState do
   alias MMO.{Action, Board}
   alias MMO.Actions.{Attack, Move}
 
-  @type t :: %__MODULE__{board: Board.t(), player_info: %{player => player_state}}
+  # @type t :: %__MODULE__{board: Board.t(), player_info: %{player => player_state}}
+  @type t :: %__MODULE__{board: %Board{}, player_info: %{player => player_state}}
 
   @typedoc false
   @typep player_state :: %{position: coordinate, status: player_status}
@@ -242,7 +243,7 @@ defmodule MMO.GameState do
     do: get_in(player_info, [player, :position])
 
   @doc false
-  @spec player_attack(t, player) :: {:ok, t} | {:error, player_error}
+  @spec player_attack(t, player) :: {:ok, t} | {{:error, player_error}, t}
   def player_attack(%__MODULE__{} = state, player) when is_player(player) do
     case verify_player(state, player) do
       :ok ->
