@@ -38,4 +38,6 @@ defmodule MMO do
   defdelegate start_link(game, player), to: MMO.PlaySession
   defdelegate move(session, direction), to: MMO.PlaySession
   defdelegate attack(session), to: MMO.PlaySession
+  defdelegate player_state(session), to: MMO.PlaySession
+  defdelegate game_info(session), to: MMO.PlaySession
 end
