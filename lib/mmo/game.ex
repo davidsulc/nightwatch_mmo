@@ -6,13 +6,18 @@ defmodule MMO.Game do
   alias MMO.Game.State
 
   @type game_name :: atom
+
+  @typedoc false
   @type player :: String.t()
+
+  @typedoc false
   @type coordinate :: MMO.Board.coordinate()
 
   @name __MODULE__
   @registry Registry.MMO.Games
   @respawn_delay 5_000
 
+  @doc false
   def start_link(opts \\ []) when is_list(opts) do
     {name, opts} = Keyword.pop(opts, :name, @name)
     GenServer.start_link(__MODULE__, opts, name: via_tuple(name))
@@ -20,12 +25,17 @@ defmodule MMO.Game do
 
   defp via_tuple(name), do: {:via, Registry, {@registry, name}}
 
+  @doc false
   def join(game \\ @name, player), do: call(game, {:join, player})
 
+  @doc false
   def move(game \\ @name, player, destination), do: call(game, {:move, player, destination})
 
+  @doc false
   def attack(game \\ @name, player), do: call(game, {:attack, player})
 
+  @doc "Returns a game's pid"
+  @spec whereis(game_name) :: nil | pid
   def whereis(game \\ @name) do
     case lookup(game) do
       [{pid, _}] -> pid
@@ -46,6 +56,7 @@ defmodule MMO.Game do
 
   defp lookup(game), do: Registry.lookup(@registry, game)
 
+  @doc false
   def init(opts) do
     with {:ok, game_state} <- GameState.new(opts),
          {:ok, state} <- State.new(game_state) do

@@ -4,6 +4,7 @@ defmodule MMO.Board do
 
   Cells are referenced by {row, col} `t:coordinate/0` tuples, where each value is a non-negative integer.
   """
+  @moduledoc false
 
   alias __MODULE__.{Serialization, Validation}
 

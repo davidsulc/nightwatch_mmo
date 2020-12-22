@@ -1,6 +1,7 @@
 defmodule MMO.GameState do
-  # TODO document
-  @moduledoc false
+  @doc """
+  A game's state: board configuration, player coordinates, etc.
+  """
 
   import MMO.Board, only: [is_coord: 1]
 
@@ -8,18 +9,44 @@ defmodule MMO.GameState do
   alias MMO.Actions.{Attack, Move}
 
   @type t :: %__MODULE__{board: Board.t(), player_info: %{player => player_state}}
+
+  @typedoc false
   @typep player_state :: %{position: coordinate, status: player_status}
+
+  @typedoc false
   @type coordinate :: Board.coordinate()
+
+  @typedoc false
   @typep player_status :: :alive | :dead
+
+  @typedoc false
   @type coalesced_board :: %{coordinate => coalesced_cell}
+
+  @typedoc false
   @type coalesced_cell :: empty_cell | cell_contents
+
+  @typedoc false
   @type empty_cell :: Board.cell()
+
+  @typedoc false
   @type cell_contents :: %{player => player_status}
+
+  @typedoc false
   @typep player :: String.t()
+
+  @typedoc false
   @type action :: Attack.t() | Move.t()
+
+  @typedoc false
   @type action_error :: player_error | move_error
+
+  @typedoc false
   @typep player_error :: :invalid_player | :dead_player
+
+  @typedoc false
   @typep spawn_error :: :already_spawned | :max_players
+
+  @typedoc false
   @typep move_error :: :unwalkable_destination | :unreachable_destination
 
   @enforce_keys [:board, :player_info, :max_player_count]
@@ -45,6 +72,7 @@ defmodule MMO.GameState do
      `{:error, {:invalid_option, :max_players}}` will be returned if an invalid
      value is provided.
   """
+  @doc false
   @spec new(Keyword.t()) ::
           {:ok, t} | {:error, {:invalid_option, option :: atom} | :max_board_dimension_exceeded}
   def new(opts \\ []) when is_list(opts) do
@@ -112,6 +140,7 @@ defmodule MMO.GameState do
   * `:already_spawned` if the player is already in the game
   * `:max_players` if the maximum player count for the game has been reached
   """
+  @doc false
   @spec spawn_player(t, player) :: {:ok, t} | {{:error, spawn_error}, t}
   def spawn_player(%__MODULE__{} = state, player) when is_player(player),
     do: spawn_player_at(state, player, Board.random_walkable_cell(state.board))
@@ -166,6 +195,7 @@ defmodule MMO.GameState do
     end
   end
 
+  @doc false
   @spec apply_action(t, action) :: {:ok, t} | {{:error, action_error}, t}
   def apply_action(%__MODULE__{} = state, action), do: Action.apply(action, state)
 
@@ -255,6 +285,7 @@ defmodule MMO.GameState do
     MapSet.member?(blast_radius, player_state.position) && !MapSet.member?(safe_players, player)
   end
 
+  @doc false
   @spec coalesce(t) :: coalesced_board
   def coalesce(%__MODULE__{} = state) do
     board_cell_map = Board.cell_map(state.board)
@@ -274,10 +305,12 @@ defmodule MMO.GameState do
     end)
   end
 
+  @doc false
   @spec drop_players(t, [player]) :: t
   def drop_players(%__MODULE__{} = state, players) when is_list(players),
     do: %{state | player_info: Map.drop(state.player_info, players)}
 
+  @doc false
   @spec to_frame(t) :: %{board_state: coalesced_board, dimensions: Board.dimensions()}
   def to_frame(%__MODULE__{board: board} = state) do
     %{
@@ -286,6 +319,7 @@ defmodule MMO.GameState do
     }
   end
 
+  @doc false
   @spec render(t, player) :: String.t()
   def render(%__MODULE__{board: board} = state, current_player) do
     MMO.Utils.render(

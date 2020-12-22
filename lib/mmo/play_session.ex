@@ -10,6 +10,8 @@ defmodule MMO.PlaySession do
   alias MMO.Game
 
   defmodule State do
+    @moduledoc false
+
     defstruct [
       :player_id,
       :player_state,

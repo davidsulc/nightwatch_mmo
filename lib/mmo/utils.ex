@@ -1,28 +1,104 @@
 defmodule MMO.Utils do
-  @type lookup_table :: MMO.Board.lookup_table()
-  @type coordinate :: MMO.Board.coordinate()
-  @typep player_status :: :alive | :dead
   @type coalesced_board :: %{coordinate => coalesced_cell}
-  @type coalesced_cell :: empty_cell | cell_contents
-  @type empty_cell :: MMO.Board.cell()
-  @type cell_contents :: %{player => player_status}
-  @typep player :: String.t()
-  @typep player_renderer :: (cell_contents -> String.t())
-  @type board_dimensions :: MMO.Board.dimensions()
 
+  @typedoc """
+  Represents a coordinate on the board.
+
+  `{0, 0}` refers to the top-left corner
+
+  `{1, 0}` refers to the left-most cell on the 2nd row
+  """
+  @type coordinate :: {row :: non_neg_integer, col :: non_neg_integer}
+
+  @type coalesced_cell :: empty_cell | cell_contents
+  @type empty_cell :: :floor | :wall
+  @type cell_contents :: %{player => player_status}
+  @type player :: String.t()
+  @type player_status :: :alive | :dead
+  @type player_renderer :: (cell_contents -> rendered_cell)
+  @type rendered_cell :: rendered_tile | rendered_contents
+  @type rendered_tile :: rendered_wall | rendered_floor
+
+  @typedoc ~S(The `"#"` string.)
+  @type rendered_wall :: String.t()
+
+  @typedoc ~S{The `" "` (space character) string.}
+  @type rendered_floor :: String.t()
+
+  @type rendered_contents :: rendered_current_player | rendered_other_players
+  @type rendered_current_player :: current_player_alive | current_player_dead
+
+  @typedoc ~S(The `"@"` string.)
+  @type current_player_alive :: String.t()
+
+  @typedoc ~S(The `"&"` string.)
+  @type current_player_dead :: String.t()
+
+  @type rendered_other_players :: only_dead_players | few_live_players | many_live_players
+
+  @typedoc ~S(The `"x"` string.)
+  @type only_dead_players :: String.t()
+
+  @typedoc "A digit from 1 to 9 in string format."
+  @type few_live_players :: String.t()
+
+  @typedoc ~S(The `"*"` string.)
+  @type many_live_players :: String.t()
+
+  @typedoc """
+  A board's dimensions.
+
+  A board with 7 rows and 9 columns will have `%{rows: 7, cols: 9}` dimensions.
+  """
+  @type board_dimensions :: %{rows: non_neg_integer, cols: non_neg_integer}
+
+  @typep lookup_table :: MMO.Board.lookup_table()
+
+  @doc """
+  Renders a coalesced board state into a string.
+
+  Example output:
+
+  ```
+  ##########
+  # @x1    #
+  #xx 1  * #
+  #   1 1 1#
+  ## #### 1#
+  # 11# 1  #
+  #  1#    #
+  #   #    #
+  # 211 1 1#
+  ##########
+  ```
+
+  Where:
+
+  * `#` is a cell containing a wall and is therefore not walkable
+  * `\u2423` (i.e. "nothing") is a walkable cell containing no players
+  * `@` is the cell containing the current player (and any number of other alive/dead players)
+  * `&` is the cell containing the current player if they are dead (and any number of other alive/dead players)
+  * `x` is a cell containing only dead players, and any number of them
+  * any 1-9 digit is a cell containing that amount of live players if they are dead)
+  * `*` is a cell containing over 9 live players (and any number of dead players)
+  """
   @spec render(coalesced_board, board_dimensions, player) :: String.t()
-  def render(%{} = coalesced_board, %{rows: _, cols: _} = dimensions, player)
-      when is_binary(player),
-      do: render(coalesced_board, dimensions, player_renderer(player))
+  def render(%{} = coalesced_board, %{rows: _, cols: _} = dimensions, player_or_player_renderer)
+      when is_binary(player_or_player_renderer),
+      do: render(coalesced_board, dimensions, player_renderer(player_or_player_renderer))
 
   @spec render(coalesced_board, board_dimensions, player_renderer) :: String.t()
-  def render(%{} = coalesced_board, %{rows: row_count, cols: col_count}, player_renderer)
+  def render(
+        %{} = coalesced_board,
+        %{rows: row_count, cols: col_count},
+        player_or_player_renderer
+      )
       when is_integer(row_count) and row_count >= 0
       when is_integer(col_count) and col_count >= 0
-      when is_function(player_renderer, 1) do
+      when is_function(player_or_player_renderer, 1) do
     (row_count - 1)..0
     |> Enum.reduce([], fn row, acc ->
-      [render_row(coalesced_board, row, col_count, player_renderer) | acc]
+      [render_row(coalesced_board, row, col_count, player_or_player_renderer) | acc]
     end)
     |> IO.iodata_to_binary()
   end

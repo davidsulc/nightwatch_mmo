@@ -1,4 +1,6 @@
 defmodule MMO.Game.State do
+  @moduledoc false
+
   alias MMO.GameState
 
   @enforce_keys [:game_state, :player_pids, :player_monitors]
